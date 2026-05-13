@@ -57,9 +57,10 @@ export default function App() {
     return () => { cleanStatus(); cleanLog(); };
   }, [loadBots]);
 
-  // ── Updater event listeners ─────────────────────────────────────────────────────────
+  // ── Updater event listeners ──────────────────────────────────────────────────
   useEffect(() => {
-    const a = window.api.onUpdateAvailable?.   ((d) => { setCheckingUpdate(false); setUpdate({ state: 'available', version: d.version }); });
+    // update:available now means download has started automatically
+    const a = window.api.onUpdateAvailable?.   ((d) => { setCheckingUpdate(false); setUpdate({ state: 'downloading', percent: 0, version: d.version }); });
     const b = window.api.onUpdateProgress?.    ((d) => setUpdate((u) => ({ ...u, state: 'downloading', percent: d.percent })));
     const c = window.api.onUpdateDownloaded?.  ((d) => setUpdate({ state: 'ready', version: d.version }));
     const nu = window.api.onUpdateNotAvailable?.(() => setCheckingUpdate(false));
@@ -181,11 +182,20 @@ export default function App() {
 
         <div style={{ padding: "10px 16px", borderTop: "1px solid #12121f", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           {!sidebarCollapsed && <p style={{ fontSize: 10, color: "#2a2a3a", margin: 0 }}>{appVersion ? `v${appVersion}` : 'v1.0.0'}</p>}
-          {!sidebarCollapsed && (
-          <button onClick={handleCheckUpdate} disabled={checkingUpdate || update?.state === 'downloading'}
+          {/* Subtle background download progress */}
+          {!sidebarCollapsed && update?.state === 'downloading' && (
+            <div style={{ flex: 1, margin: "0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ flex: 1, height: 3, borderRadius: 2, background: "#1e1e35", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${update.percent ?? 0}%`, background: "#5865F2", transition: "width 0.4s", borderRadius: 2 }} />
+              </div>
+              <span style={{ fontSize: 9, color: "#3a3a5a", whiteSpace: "nowrap" }}>{update.percent ?? 0}%</span>
+            </div>
+          )}
+          {!sidebarCollapsed && update?.state !== 'downloading' && (
+          <button onClick={handleCheckUpdate} disabled={checkingUpdate}
             title="Tarkista päivitykset"
             style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, background: "transparent", border: "none",
-              cursor: (checkingUpdate || update?.state === 'downloading') ? "default" : "pointer",
+              cursor: checkingUpdate ? "default" : "pointer",
               color: checkingUpdate ? "#2a2a3a" : "#3a3a5a", padding: "2px 5px", borderRadius: 4, transition: "color 0.1s" }}
             onMouseEnter={e => { if (!checkingUpdate) e.currentTarget.style.color = "#5865F2"; }}
             onMouseLeave={e => { e.currentTarget.style.color = checkingUpdate ? "#2a2a3a" : "#3a3a5a"; }}
@@ -206,10 +216,9 @@ export default function App() {
       {/* ── Main ────────────────────────────────────────────────── */}
       <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
-        {/* Update banner */}
-        {update && (
+        {/* Update banner — only shown when ready to install or error */}
+        {update && (update.state === 'ready' || update.state === 'error') && (
           <UpdateBanner update={update}
-            onDownload={() => { setUpdate((u) => ({ ...u, state: 'downloading', percent: 0 })); window.api.downloadUpdate(); }}
             onInstall={() => window.api.installUpdate()}
             onDismiss={() => setUpdate(null)}
           />
@@ -316,10 +325,9 @@ function StatTile({ icon, value, label, highlight }) {
   );
 }
 
-function UpdateBanner({ update, onDownload, onInstall, onDismiss }) {
-  const isReady       = update.state === 'ready';
-  const isDownloading = update.state === 'downloading';
-  const isError       = update.state === 'error';
+function UpdateBanner({ update, onInstall, onDismiss }) {
+  const isReady = update.state === 'ready';
+  const isError = update.state === 'error';
 
   if (isError) return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 20px", background: "rgba(237,66,69,0.08)", borderBottom: "1px solid rgba(237,66,69,0.2)", flexShrink: 0 }}>
@@ -328,47 +336,25 @@ function UpdateBanner({ update, onDownload, onInstall, onDismiss }) {
     </div>
   );
 
+  if (!isReady) return null;
+
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 12,
       padding: "10px 20px",
-      background: isReady ? "rgba(59,165,93,0.12)" : "rgba(88,101,242,0.12)",
-      borderBottom: `1px solid ${isReady ? "rgba(59,165,93,0.25)" : "rgba(88,101,242,0.25)"}`,
+      background: "rgba(59,165,93,0.12)",
+      borderBottom: "1px solid rgba(59,165,93,0.25)",
       flexShrink: 0,
     }}>
-      {isDownloading
-        ? <RefreshCw size={14} color="#949cf7" style={{ animation: "spin 1s linear infinite", flexShrink: 0 }} />
-        : <Download size={14} color={isReady ? "#3ba55d" : "#949cf7"} style={{ flexShrink: 0 }} />
-      }
-
-      <span style={{ flex: 1, fontSize: 12, color: isReady ? "#3ba55d" : "#949cf7" }}>
-        {isReady
-          ? `Versio ${update.version} ladattu — käynnistä uudelleen asentaaksesi`
-          : isDownloading
-          ? `Ladataan päivitystä… ${update.percent ?? 0}%`
-          : `Uusi versio saatavilla: ${update.version}`
-        }
+      <Download size={14} color="#3ba55d" style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1, fontSize: 12, color: "#3ba55d" }}>
+        Versio {update.version} ladattu — sulkemalla sovellus päivitys asennetaan automaattisesti
       </span>
-
-      {isDownloading && (
-        <div style={{ width: 120, height: 4, borderRadius: 2, background: "#1e1e35", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${update.percent ?? 0}%`, background: "#5865F2", transition: "width 0.3s", borderRadius: 2 }} />
-        </div>
-      )}
-
-      {!isDownloading && (
-        <button onClick={isReady ? onInstall : onDownload}
-          style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
-            background: isReady ? "#3ba55d" : "#5865F2", color: "#fff" }}>
-          {isReady ? "Asenna ja käynnistä uudelleen" : "Lataa päivitys"}
-        </button>
-      )}
-
-      {!isDownloading && !isReady && (
-        <button onClick={onDismiss} style={{ padding: 4, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", color: "#4e5058" }}>
-          <X size={13} />
-        </button>
-      )}
+      <button onClick={onInstall}
+        style={{ padding: "6px 14px", borderRadius: 7, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
+          background: "#3ba55d", color: "#fff" }}>
+        Asenna nyt
+      </button>
     </div>
   );
 }

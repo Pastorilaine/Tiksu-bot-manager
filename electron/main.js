@@ -8,8 +8,8 @@ const Store = require('electron-store');
 const { autoUpdater } = require('electron-updater');
 
 // ─── Auto-updater config ─────────────────────────────────────────────────────
-autoUpdater.autoDownload    = false;  // ask user first
-autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.autoDownload         = true;   // download silently in background
+autoUpdater.autoInstallOnAppQuit = true;   // install automatically on quit
 
 const store = new Store();
 
@@ -603,7 +603,8 @@ ipcMain.handle('win:close',        () => mainWindow?.close());
 ipcMain.handle('win:is-maximized', () => mainWindow?.isMaximized() ?? false);
 
 autoUpdater.on('update-available', (info) => {
-  sendToRenderer('update:available', { version: info.version, releaseNotes: info.releaseNotes ?? null });
+  // Download starts automatically — just notify renderer so it can show progress
+  sendToRenderer('update:available', { version: info.version });
 });
 
 autoUpdater.on('update-not-available', () => {
@@ -616,6 +617,24 @@ autoUpdater.on('download-progress', ({ percent }) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   sendToRenderer('update:downloaded', { version: info.version });
+  // Show tray notification so user knows even if window is hidden
+  try {
+    new Notification({
+      title: 'Tiksu Bot Manager — Päivitys valmis',
+      body: `Versio ${info.version} on ladattu. Asennuu automaattisesti kun suljet sovelluksen.`,
+    }).show();
+  } catch (_) {}
+  // Add install option to tray menu
+  if (tray) {
+    const menu = Menu.buildFromTemplate([
+      { label: 'Avaa hallintapaneeli', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+      { type: 'separator' },
+      { label: `⬆ Asenna päivitys v${info.version} nyt`, click: () => { autoUpdater.quitAndInstall(); } },
+      { type: 'separator' },
+      { label: 'Lopeta (pysäyttää botit)', click: () => { app.isQuitting = true; app.quit(); } },
+    ]);
+    tray.setContextMenu(menu);
+  }
 });
 
 autoUpdater.on('error', (err) => {
