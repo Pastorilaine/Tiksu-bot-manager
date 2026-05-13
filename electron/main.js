@@ -75,7 +75,7 @@ function saveBounds() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '../tiksu_bots_trans.png');
+  const iconPath = path.join(__dirname, '../assets/tiksu_bots_trans.png');
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip('Tiksu Bot Manager');
@@ -98,7 +98,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#0f0f1a',
     frame: false,
-    icon: path.join(__dirname, '../tiksu_bots_trans.png'),
+    icon: path.join(__dirname, '../assets/tiksu_bots_trans.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

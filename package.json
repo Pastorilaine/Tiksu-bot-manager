@@ -42,7 +42,7 @@
       "dist/**/*",
       "electron/**/*",
       "node_modules/**/*",
-      "tiksu_bots_trans.png",
+      "assets/tiksu_bots_trans.png",
       "package.json"
     ],
     "extraResources": [],
