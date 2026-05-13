@@ -14,7 +14,9 @@ contextBridge.exposeInMainWorld('api', {
   getBotStatus:  (id)             => ipcRenderer.invoke('bot:status', id),
 
   // ── File dialog ───────────────────────────────────────────────────────────
-  pickFile: () => ipcRenderer.invoke('dialog:pick-file'),
+  pickFile:     () => ipcRenderer.invoke('dialog:pick-file'),
+  pickEnvFile:  () => ipcRenderer.invoke('dialog:pick-env'),
+  readFile:     (filePath) => ipcRenderer.invoke('file:read', filePath),
 
   // ── Events from main process ──────────────────────────────────────────────
   onBotStatus: (cb) => {

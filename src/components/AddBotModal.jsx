@@ -7,22 +7,40 @@ export default function AddBotModal({ onAdd, onClose }) {
   const [filePath, setFilePath]   = useState("");
   const [autoRestart, setAutoRestart] = useState(true);
   const [loading, setLoading]     = useState(false);
+  const [envVars, setEnvVars]     = useState({});
+  const [envFile, setEnvFile]     = useState('');
 
   const pickFile = async () => {
-    const path = await window.api.pickFile();
-    if (!path) return;
-    setFilePath(path);
-    if (!name) setName(path.split(/[\\/]/).pop().replace(/\.[^.]+$/, ""));
-    const ext = path.split(".").pop().toLowerCase();
+    const p = await window.api.pickFile();
+    if (!p) return;
+    setFilePath(p);
+    if (!name) setName(p.split(/[\\/]/).pop().replace(/\.[^.]+$/, ""));
+    const ext = p.split(".").pop().toLowerCase();
     if (ext === "py") setType("python");
     else if (["js","mjs","cjs"].includes(ext)) setType("js");
+    // Auto-detect .env in same directory
+    const lastSlash = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    const envPath = p.slice(0, lastSlash + 1) + '.env';
+    const content = await window.api.readFile?.(envPath);
+    if (content) {
+      const parsed = parseEnvContent(content);
+      if (Object.keys(parsed).length > 0) { setEnvVars(parsed); setEnvFile(envPath); }
+    }
+  };
+
+  const importEnv = async () => {
+    const result = await window.api.pickEnvFile?.();
+    if (!result) return;
+    const parsed = parseEnvContent(result.content);
+    setEnvVars(parsed);
+    setEnvFile(result.filePath);
   };
 
   const submit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !filePath.trim()) return;
     setLoading(true);
-    await onAdd({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, envVars: {} });
+    await onAdd({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, envVars });
     setLoading(false);
   };
 
@@ -84,7 +102,31 @@ export default function AddBotModal({ onAdd, onClose }) {
             </div>
           </div>
 
-          {/* Auto-restart */}
+          {/* .env file */}
+          <div style={{ marginBottom: 16 }}>
+            <span style={labelStyle}>Ympäristömuuttujat <span style={{ fontWeight: 400, color: "#4e5058" }}>(valinnainen)</span></span>
+            {envFile ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, padding: "10px 13px", borderRadius: 9, background: "rgba(59,165,93,0.06)", border: "1px solid rgba(59,165,93,0.2)" }}>
+                <FileCode2 size={13} color="#3ba55d" style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 12, color: "#3ba55d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {Object.keys(envVars).length} muuttujaa tuotu · {envFile.split(/[\\/]/).pop()}
+                </span>
+                <button type="button" onClick={() => { setEnvVars({}); setEnvFile(''); }}
+                  style={{ padding: 2, background: "transparent", border: "none", cursor: "pointer", color: "#4e5058", display: "flex" }}>
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={importEnv}
+                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 13px", borderRadius: 9, background: "transparent", border: "1px dashed #1e1e35", color: "#4e5058", fontSize: 13, cursor: "pointer", transition: "all 0.1s", marginTop: 6 }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "#5865F2"; e.currentTarget.style.color = "#949cf7"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e1e35"; e.currentTarget.style.color = "#4e5058"; }}>
+                <FolderOpen size={14} /> Tuo .env-tiedostosta
+              </button>
+            )}
+          </div>
+
+          {/* Auto-restart */}}
           <label style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "rgba(88,101,242,0.04)", cursor: "pointer", marginBottom: 22, userSelect: "none" }}>
             <div onClick={() => setAutoRestart(!autoRestart)}
               style={{ width: 36, height: 20, borderRadius: 10, background: autoRestart ? "#5865F2" : "#20202a", border: `1px solid ${autoRestart ? "#5865F2" : "#2a2a3a"}`, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
@@ -123,3 +165,20 @@ const inputStyle = {
   background: "#0b0b14", border: "1px solid #1e1e35", color: "#e3e5e8", fontSize: 13,
   outline: "none", transition: "border-color 0.1s", boxSizing: "border-box",
 };
+
+function parseEnvContent(content) {
+  const vars = {};
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx < 1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let val = trimmed.slice(eqIdx + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (key && /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) vars[key] = val;
+  }
+  return vars;
+}

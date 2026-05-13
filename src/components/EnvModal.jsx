@@ -1,5 +1,5 @@
 ﻿import { useState } from "react";
-import { Settings, X, Plus, Trash2, ShieldAlert, Inbox } from "lucide-react";
+import { Settings, X, Plus, Trash2, ShieldAlert, Inbox, FolderOpen } from "lucide-react";
 
 const SENSITIVE_RE = /token|secret|password|key|api|auth/i;
 
@@ -9,10 +9,23 @@ export default function EnvModal({ bot, onSave, onClose }) {
   const addRow   = () => setRows((p) => [...p, { k: "", v: "" }]);
   const delRow   = (i) => setRows((p) => p.filter((_, j) => j !== i));
   const upd      = (i, field, val) => setRows((p) => p.map((r, j) => j === i ? { ...r, [field]: val } : r));
-  const save     = () => {
+  const save = () => {
     const env = {};
     for (const { k, v } of rows) if (k.trim()) env[k.trim()] = v;
     onSave(env);
+  };
+
+  const importEnv = async () => {
+    const result = await window.api.pickEnvFile?.();
+    if (!result) return;
+    const parsed = parseEnvContent(result.content);
+    setRows(prev => {
+      const existing = new Set(prev.map(r => r.k.trim()).filter(Boolean));
+      const newRows = Object.entries(parsed)
+        .filter(([k]) => !existing.has(k))
+        .map(([k, v]) => ({ k, v }));
+      return [...prev, ...newRows];
+    });
   };
 
   return (
@@ -88,6 +101,13 @@ export default function EnvModal({ bot, onSave, onClose }) {
           >
             <Plus size={14} /> Lisää muuttuja
           </button>
+          <button onClick={importEnv}
+            style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 9, border: "1px dashed #252535", background: "transparent", color: "#4e5058", fontSize: 13, cursor: "pointer", width: "100%", transition: "all 0.1s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "#5865F2"; e.currentTarget.style.color = "#949cf7"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "#252535"; e.currentTarget.style.color = "#4e5058"; }}
+          >
+            <FolderOpen size={14} /> Tuo .env-tiedostosta
+          </button>
         </div>
 
         {/* Footer */}
@@ -114,3 +134,20 @@ const cellInput = {
   color: "#e3e5e8", fontSize: 12, outline: "none", transition: "border-color 0.1s",
   fontFamily: "'Consolas','Cascadia Code',monospace",
 };
+
+function parseEnvContent(content) {
+  const vars = {};
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx < 1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let val = trimmed.slice(eqIdx + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (key && /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) vars[key] = val;
+  }
+  return vars;
+}

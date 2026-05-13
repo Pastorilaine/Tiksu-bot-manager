@@ -469,6 +469,33 @@ ipcMain.handle('dialog:pick-file', async () => {
   return result.canceled ? null : result.filePaths[0];
 });
 
+ipcMain.handle('file:read', (_, filePath) => {
+  try {
+    if (typeof filePath !== 'string') return null;
+    const normalized = path.normalize(filePath);
+    const stat = fs.statSync(normalized);
+    if (!stat.isFile() || stat.size > 65536) return null;
+    return fs.readFileSync(normalized, 'utf8');
+  } catch { return null; }
+});
+
+ipcMain.handle('dialog:pick-env', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Valitse .env-tiedosto',
+    properties: ['openFile'],
+    filters: [
+      { name: '.env-tiedostot', extensions: ['env', 'txt'] },
+      { name: 'Kaikki tiedostot', extensions: ['*'] },
+    ],
+  });
+  if (result.canceled) return null;
+  try {
+    const stat = fs.statSync(result.filePaths[0]);
+    if (!stat.isFile() || stat.size > 65536) return null;
+    return { filePath: result.filePaths[0], content: fs.readFileSync(result.filePaths[0], 'utf8') };
+  } catch { return null; }
+});
+
 // ─── Update IPC handlers ─────────────────────────────────────────────────────
 
 ipcMain.handle('update:check', async () => {
