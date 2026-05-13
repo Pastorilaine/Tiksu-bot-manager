@@ -469,8 +469,6 @@ ipcMain.handle('dialog:pick-file', async () => {
   return result.canceled ? null : result.filePaths[0];
 });
 
-// ─── App lifecycle ────────────────────────────────────────────────────────────
-
 // ─── Update IPC handlers ─────────────────────────────────────────────────────
 
 ipcMain.handle('update:check', async () => {

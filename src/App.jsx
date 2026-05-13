@@ -59,7 +59,7 @@ export default function App() {
     return () => { a?.(); b?.(); c?.(); e?.(); };
   }, []);
 
-  const handleAdd    = async (data) => { const b = await window.api.addBot(data); setBots((p) => [...p, b]); setStatuses((p) => ({ ...p, [b.id]: "offline" })); setShowAddModal(false); };
+  const handleAdd    = async (data) => { const b = await window.api.addBot(data); if (b?.error) { alert(b.error); return; } setBots((p) => [...p, b]); setStatuses((p) => ({ ...p, [b.id]: "offline" })); setShowAddModal(false); };
   const handleDelete = async (id)   => { if (!window.confirm("Poistetaanko botti pysyvästi?")) return; await window.api.deleteBot(id); setBots((p) => p.filter((b) => b.id !== id)); if (selectedBotId === id) setSelectedBotId(null); };
   const handleStart  = async (id)   => { setStatuses((p) => ({ ...p, [id]: "starting" }));   await window.api.startBot(id); };
   const handleStop   = async (id)   => { await window.api.stopBot(id); };
