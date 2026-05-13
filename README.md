@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="tiksu_bots_trans.png" alt="Tiksu Bots" width="220" />
+  <img src="assets/tiksu_bots_trans.png" alt="Tiksu Bots" width="220" />
 </p>
 
 <h1 align="center">Tiksu Bot Manager</h1>
