@@ -126,7 +126,7 @@ export default function AddBotModal({ onAdd, onClose }) {
             )}
           </div>
 
-          {/* Auto-restart */}}
+          {/* Auto-restart */}
           <label style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "rgba(88,101,242,0.04)", cursor: "pointer", marginBottom: 22, userSelect: "none" }}>
             <div onClick={() => setAutoRestart(!autoRestart)}
               style={{ width: 36, height: 20, borderRadius: 10, background: autoRestart ? "#5865F2" : "#20202a", border: `1px solid ${autoRestart ? "#5865F2" : "#2a2a3a"}`, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
