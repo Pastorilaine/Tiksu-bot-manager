@@ -41,4 +41,15 @@ contextBridge.exposeInMainWorld('api', {
   onUpdateProgress:     (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:progress',      h); return () => ipcRenderer.removeListener('update:progress',      h); },
   onUpdateDownloaded:   (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:downloaded',    h); return () => ipcRenderer.removeListener('update:downloaded',    h); },
   onUpdateError:        (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:error',         h); return () => ipcRenderer.removeListener('update:error',         h); },
+
+  // ── Window controls ───────────────────────────────────────────────────────
+  minimizeWindow:   () => ipcRenderer.invoke('win:minimize'),
+  maximizeWindow:   () => ipcRenderer.invoke('win:maximize'),
+  closeWindow:      () => ipcRenderer.invoke('win:close'),
+  isMaximized:      () => ipcRenderer.invoke('win:is-maximized'),
+  onMaximizeChange: (cb) => {
+    const h = (_, v) => cb(v);
+    ipcRenderer.on('win:maximize-change', h);
+    return () => ipcRenderer.removeListener('win:maximize-change', h);
+  },
 });

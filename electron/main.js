@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -30,6 +30,8 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#0f0f1a',
+    frame: false,
+    icon: path.join(__dirname, '../tiksu_bots_trans.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -41,6 +43,8 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.on('maximize',   () => sendToRenderer('win:maximize-change', true));
+  mainWindow.on('unmaximize', () => sendToRenderer('win:maximize-change', false));
 
   // Block any navigation away from the app (prevents renderer-initiated redirects)
   mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -519,6 +523,12 @@ ipcMain.handle('update:install', () => {
 
 ipcMain.handle('update:get-version', () => app.getVersion());
 
+// ─── Window controls ──────────────────────────────────────────────────────────
+ipcMain.handle('win:minimize',     () => mainWindow?.minimize());
+ipcMain.handle('win:maximize',     () => { if (mainWindow?.isMaximized()) mainWindow.unmaximize(); else mainWindow?.maximize(); });
+ipcMain.handle('win:close',        () => mainWindow?.close());
+ipcMain.handle('win:is-maximized', () => mainWindow?.isMaximized() ?? false);
+
 autoUpdater.on('update-available', (info) => {
   sendToRenderer('update:available', { version: info.version, releaseNotes: info.releaseNotes ?? null });
 });
@@ -542,6 +552,7 @@ autoUpdater.on('error', (err) => {
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   createWindow();
   // Check for updates 5 s after start, then every hour (only in packaged app)
   if (app.isPackaged) {

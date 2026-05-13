@@ -4,6 +4,7 @@ import BotCard from "./components/BotCard.jsx";
 import AddBotModal from "./components/AddBotModal.jsx";
 import LogPanel from "./components/LogPanel.jsx";
 import EnvModal from "./components/EnvModal.jsx";
+import TitleBar from "./components/TitleBar.jsx";
 
 const MAX_LOG_LINES = 2000;
 
@@ -78,7 +79,9 @@ export default function App() {
   const selectedBot  = bots.find((b) => b.id === selectedBotId) ?? null;
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#0b0b14", color: "#b5bac1" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "#0b0b14", color: "#b5bac1" }}>
+      <TitleBar />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside style={{ width: 260, flexShrink: 0, background: "#0d0d1a", borderRight: "1px solid #17172a", display: "flex", flexDirection: "column" }}>
@@ -213,6 +216,8 @@ export default function App() {
         )}
         </div>
       </main>
+
+      </div>
 
       {showAddModal && <AddBotModal onAdd={handleAdd} onClose={() => setShowAddModal(false)} />}
       {showEnvModal && (
