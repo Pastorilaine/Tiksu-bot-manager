@@ -53,4 +53,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('win:maximize-change', h);
     return () => ipcRenderer.removeListener('win:maximize-change', h);
   },
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  getSettings: ()              => ipcRenderer.invoke('settings:get'),
+  setSetting:  (key, value)   => ipcRenderer.invoke('settings:set', { key, value }),
 });

@@ -1,14 +1,13 @@
-﻿import { useState, useEffect, useCallback } from "react";
-import { Bot, Plus, Activity, Server, Download, RefreshCw, X, ChevronLeft, ChevronRight, Play, Square, RotateCw } from "lucide-react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
+import { Bot, Plus, Activity, Server, Download, RefreshCw, X, ChevronLeft, ChevronRight, Play, Square, RotateCw, Settings } from "lucide-react";
 import BotCard from "./components/BotCard.jsx";
 import AddBotModal from "./components/AddBotModal.jsx";
 import LogPanel from "./components/LogPanel.jsx";
 import EnvModal from "./components/EnvModal.jsx";
 import TitleBar from "./components/TitleBar.jsx";
 import ConfirmModal from "./components/ConfirmModal.jsx";
+import SettingsModal from "./components/SettingsModal.jsx";
 import { formatUptime } from "./hooks/useUptime.js";
-
-const MAX_LOG_LINES = 2000;
 
 export default function App() {
   const [bots, setBots]             = useState([]);
@@ -21,6 +20,12 @@ export default function App() {
   const [editBot, setEditBot]             = useState(null);  // bot object to edit
   const [confirmDelete, setConfirmDelete] = useState(null); // bot id to delete
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showSettings, setShowSettings]         = useState(false);
+  const [appSettings, setAppSettings]           = useState({ maxLogLines: 2000 });
+  const maxLogLinesRef = useRef(2000);
+
+  // keep ref in sync with settings so log handler always has the current value
+  useEffect(() => { maxLogLinesRef.current = appSettings.maxLogLines || 2000; }, [appSettings.maxLogLines]);
 
   // ── Update state ──────────────────────────────────────────────────────────────
   // States: null | 'available' | 'downloading' | 'ready' | 'error'
@@ -39,6 +44,7 @@ export default function App() {
   useEffect(() => {
     loadBots();
     window.api.getVersion?.().then((v) => setAppVersion(v));
+    window.api.getSettings?.().then((s) => { if (s) setAppSettings(s); });
 
     const cleanStatus = window.api.onBotStatus(({ botId, status }) => {
       setStatuses((p) => ({ ...p, [botId]: status }));
@@ -50,7 +56,8 @@ export default function App() {
     const cleanLog = window.api.onBotLog(({ botId, message, type, ts }) => {
       setLogs((p) => {
         const ex = p[botId] || [];
-        const trimmed = ex.length >= MAX_LOG_LINES ? ex.slice(ex.length - MAX_LOG_LINES + 1) : ex;
+        const maxLines = maxLogLinesRef.current;
+        const trimmed = maxLines > 0 && ex.length >= maxLines ? ex.slice(ex.length - maxLines + 1) : ex;
         return { ...p, [botId]: [...trimmed, { message, type, ts }] };
       });
     });
@@ -75,6 +82,15 @@ export default function App() {
   const handleStop   = async (id)   => { await window.api.stopBot(id); };
   const handleRestart= async (id)   => { setStatuses((p) => ({ ...p, [id]: "restarting" })); await window.api.restartBot(id); };
   const handleSaveEnv= async (id, envVars) => { await window.api.updateBot(id, { envVars }); setBots((p) => p.map((b) => b.id === id ? { ...b, envVars } : b)); setShowEnvModal(null); };
+  const handleStartAll = () => {
+    bots.forEach((b) => {
+      const s = statuses[b.id] || "offline";
+      if (s !== "online" && s !== "starting" && s !== "restarting") handleStart(b.id);
+    });
+  };
+  const handleStopAll = () => {
+    bots.forEach((b) => { if (statuses[b.id] === "online") handleStop(b.id); });
+  };
   const handleCheckUpdate = async () => {
     if (checkingUpdate || update?.state === 'downloading') return;
     setCheckingUpdate(true);
@@ -133,12 +149,22 @@ export default function App() {
           )}
         </div>
 
-        {/* Bot list label */}
+        {/* Bot list label + start/stop all */}
         {bots.length > 0 && !sidebarCollapsed && (
-          <div style={{ padding: "14px 16px 6px" }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#30303d", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+          <div style={{ padding: "10px 16px 4px", display: "flex", alignItems: "center", gap: 6 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#30303d", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flex: 1 }}>
               Botit — {bots.length}
             </p>
+            <button onClick={handleStartAll} title="Käynnistä kaikki"
+              style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 7px", borderRadius: 5, border: "1px solid rgba(59,165,93,0.3)", background: "rgba(59,165,93,0.08)", color: "#3ba55d", cursor: "pointer", fontSize: 10 }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(59,165,93,0.18)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(59,165,93,0.08)"}
+            ><Play size={9} fill="#3ba55d" /></button>
+            <button onClick={handleStopAll} title="Pysäytä kaikki"
+              style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 7px", borderRadius: 5, border: "1px solid rgba(237,66,69,0.3)", background: "rgba(237,66,69,0.08)", color: "#ed4245", cursor: "pointer", fontSize: 10 }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(237,66,69,0.18)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(237,66,69,0.08)"}
+            ><Square size={9} fill="#ed4245" /></button>
           </div>
         )}
 
@@ -202,6 +228,14 @@ export default function App() {
           >
             <RefreshCw size={10} style={checkingUpdate ? { animation: "spin 1s linear infinite" } : {}} />
             <span>{checkingUpdate ? "Tarkistetaan…" : "Tarkista"}</span>
+          </button>
+          )}
+          {!sidebarCollapsed && (
+          <button onClick={() => setShowSettings(true)} title="Asetukset"
+            style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: "1px solid #1e1e2a", background: "transparent", color: "#30303d", cursor: "pointer", transition: "all 0.1s" }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#30303d"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
+            <Settings size={13} />
           </button>
           )}
           <button onClick={() => setSidebarCollapsed((v) => !v)} title={sidebarCollapsed ? "Laajenna sivupalkki" : "Pienennä sivupalkki"}
@@ -307,6 +341,12 @@ export default function App() {
           dangerLabel="Poista pysyvästi"
           onConfirm={() => handleDelete(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+      {showSettings && (
+        <SettingsModal
+          appVersion={appVersion}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

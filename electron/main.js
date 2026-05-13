@@ -8,10 +8,52 @@ const Store = require('electron-store');
 const { autoUpdater } = require('electron-updater');
 
 // ─── Auto-updater config ─────────────────────────────────────────────────────
-autoUpdater.autoDownload         = true;   // download silently in background
 autoUpdater.autoInstallOnAppQuit = false;  // we handle this ourselves (silent mode)
 
 const store = new Store();
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+const DEFAULT_SETTINGS = {
+  launchOnStartup:          false,
+  minimizeToTrayOnClose:    true,
+  startMinimized:           false,
+  autoDownloadUpdates:      true,
+  updateCheckIntervalMin:   60,   // minutes
+  notificationsEnabled:     true,
+  notifyOnBotOnline:        true,
+  notifyOnBotCrash:         true,
+  maxLogLines:              2000,
+};
+
+function getSettings() {
+  return { ...DEFAULT_SETTINGS, ...store.get('settings', {}) };
+}
+
+function saveSetting(key, value) {
+  const s = getSettings();
+  s[key] = value;
+  store.set('settings', s);
+  return s;
+}
+
+function applySettingLive(key, value) {
+  if (key === 'launchOnStartup' || key === 'startMinimized') {
+    const s = getSettings();
+    app.setLoginItemSettings({
+      openAtLogin: s.launchOnStartup,
+      openAsHidden: s.startMinimized,
+    });
+  }
+  if (key === 'autoDownloadUpdates') {
+    autoUpdater.autoDownload = value;
+  }
+}
+
+// Apply stored settings immediately (before windows are created)
+{
+  const s = getSettings();
+  autoUpdater.autoDownload = s.autoDownloadUpdates;
+}
 
 // Map: botId -> { process, manualStop, isRestarting, moduleError }
 const botProcesses = new Map();
@@ -69,16 +111,20 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     if (savedMaximized) mainWindow.maximize();
-    mainWindow.show();
+    if (getSettings().startMinimized) {
+      mainWindow.minimize();
+    } else {
+      mainWindow.show();
+    }
   });
   mainWindow.on('maximize',   () => { store.set('windowMaximized', true);  sendToRenderer('win:maximize-change', true); });
   mainWindow.on('unmaximize', () => { store.set('windowMaximized', false); sendToRenderer('win:maximize-change', false); });
   mainWindow.on('resize', saveBounds);
   mainWindow.on('move',   saveBounds);
 
-  // Minimize to tray instead of closing
+  // Minimize to tray instead of closing (if setting is on)
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+    if (!app.isQuitting && getSettings().minimizeToTrayOnClose) {
       event.preventDefault();
       mainWindow.hide();
     }
@@ -269,7 +315,10 @@ function startBotProcess(botId) {
     : 'Node.js';
   botProcesses.set(botId, { process: proc, manualStop: false, isRestarting: false, moduleError: false });
   sendToRenderer('bot:status', { botId, status: 'online' });
-  try { new Notification({ title: 'Tiksu Bot Manager', body: `✅ ${bot.name} on nyt online` }).show(); } catch (_) {}
+  const _s1 = getSettings();
+  if (_s1.notificationsEnabled && _s1.notifyOnBotOnline) {
+    try { new Notification({ title: 'Tiksu Bot Manager', body: `✅ ${bot.name} on nyt online` }).show(); } catch (_) {}
+  }
   sendToRenderer('bot:log', {
     botId,
     message: `▶ Botti käynnistetty · ${runtimeLabel}`,
@@ -347,7 +396,10 @@ function startBotProcess(botId) {
   proc.on('error', (err) => {
     sendToRenderer('bot:log', { botId, message: `Virhe: ${err.message}`, type: 'error', ts: Date.now() });
     sendToRenderer('bot:status', { botId, status: 'error' });
-    try { const nb = getBots().find(b => b.id === botId); new Notification({ title: 'Tiksu Bot Manager', body: `⚠ ${nb?.name ?? botId} kaatui` }).show(); } catch (_) {}
+    const _s2 = getSettings();
+    if (_s2.notificationsEnabled && _s2.notifyOnBotCrash) {
+      try { const nb = getBots().find(b => b.id === botId); new Notification({ title: 'Tiksu Bot Manager', body: `⚠ ${nb?.name ?? botId} kaatui` }).show(); } catch (_) {}
+    }
     botProcesses.delete(botId);
   });
 
@@ -598,6 +650,14 @@ ipcMain.handle('update:install', () => {
 
 ipcMain.handle('update:get-version', () => app.getVersion());
 
+// ─── Settings ─────────────────────────────────────────────────────────────────
+ipcMain.handle('settings:get', () => getSettings());
+ipcMain.handle('settings:set', (_, { key, value }) => {
+  const updated = saveSetting(key, value);
+  applySettingLive(key, value);
+  return updated;
+});
+
 // ─── Window controls ──────────────────────────────────────────────────────────
 ipcMain.handle('win:minimize',     () => mainWindow?.minimize());
 ipcMain.handle('win:maximize',     () => { if (mainWindow?.isMaximized()) mainWindow.unmaximize(); else mainWindow?.maximize(); });
@@ -651,6 +711,13 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
+  // Apply startup login-item setting
+  const appSettings = getSettings();
+  app.setLoginItemSettings({
+    openAtLogin: appSettings.launchOnStartup,
+    openAsHidden: appSettings.startMinimized,
+  });
+
   // Auto-start bots that have autoStart enabled
   const autoStartBots = getBots().filter((b) => b.autoStart);
   if (autoStartBots.length > 0) {
@@ -661,10 +728,11 @@ app.whenReady().then(() => {
     }, 2500);
   }
 
-  // Check for updates 5 s after start, then every hour (only in packaged app)
+  // Check for updates 5 s after start, then on the configured interval (only in packaged app)
   if (app.isPackaged) {
+    const intervalMs = (getSettings().updateCheckIntervalMin || 60) * 60 * 1000;
     setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
-    setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 60 * 60 * 1000);
+    setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), intervalMs);
   }
 });
 
