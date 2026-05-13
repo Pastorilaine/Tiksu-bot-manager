@@ -1,14 +1,18 @@
 ﻿import { useState } from "react";
-import { Plus, X, FolderOpen, FileCode2, Code2 } from "lucide-react";
+import { Plus, X, FolderOpen, FileCode2, Code2, Pencil } from "lucide-react";
 
-export default function AddBotModal({ onAdd, onClose }) {
-  const [name, setName]           = useState("");
-  const [type, setType]           = useState("python");
-  const [filePath, setFilePath]   = useState("");
-  const [autoRestart, setAutoRestart] = useState(true);
+export default function AddBotModal({ initialBot, onAdd, onEdit, onClose }) {
+  const isEditMode = !!initialBot;
+  const [name, setName]           = useState(initialBot?.name ?? "");
+  const [type, setType]           = useState(initialBot?.type ?? "python");
+  const [filePath, setFilePath]   = useState(initialBot?.filePath ?? "");
+  const [autoRestart, setAutoRestart] = useState(initialBot?.autoRestart ?? true);
+  const [autoStart,   setAutoStart]   = useState(initialBot?.autoStart   ?? false);
   const [loading, setLoading]     = useState(false);
-  const [envVars, setEnvVars]     = useState({});
-  const [envFile, setEnvFile]     = useState('');
+  const [envVars, setEnvVars]     = useState(initialBot?.envVars ?? {});
+  const [envFile, setEnvFile]     = useState(
+    initialBot && Object.keys(initialBot.envVars ?? {}).length > 0 ? '(tallennettu)' : ''
+  );
 
   const pickFile = async () => {
     const p = await window.api.pickFile();
@@ -40,7 +44,11 @@ export default function AddBotModal({ onAdd, onClose }) {
     e.preventDefault();
     if (!name.trim() || !filePath.trim()) return;
     setLoading(true);
-    await onAdd({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, envVars });
+    if (isEditMode) {
+      await onEdit({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, autoStart, envVars });
+    } else {
+      await onAdd({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, autoStart, envVars });
+    }
     setLoading(false);
   };
 
@@ -50,10 +58,10 @@ export default function AddBotModal({ onAdd, onClose }) {
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", borderBottom: "1px solid #17172a" }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(88,101,242,0.15)", border: "1px solid rgba(88,101,242,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Plus size={16} color="#5865F2" />
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: isEditMode ? "rgba(88,101,242,0.15)" : "rgba(88,101,242,0.15)", border: "1px solid rgba(88,101,242,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {isEditMode ? <Pencil size={16} color="#5865F2" /> : <Plus size={16} color="#5865F2" />}
           </div>
-          <h2 style={{ flex: 1, margin: 0, fontSize: 16, fontWeight: 700, color: "#f2f3f5" }}>Lisää uusi botti</h2>
+          <h2 style={{ flex: 1, margin: 0, fontSize: 16, fontWeight: 700, color: "#f2f3f5" }}>{isEditMode ? "Muokkaa bottia" : "Lisää uusi botti"}</h2>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid #1e1e2a", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#4e5058" }}
             onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a3a"}
             onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e2a"}
@@ -127,7 +135,7 @@ export default function AddBotModal({ onAdd, onClose }) {
           </div>
 
           {/* Auto-restart */}
-          <label style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "rgba(88,101,242,0.04)", cursor: "pointer", marginBottom: 22, userSelect: "none" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "rgba(88,101,242,0.04)", cursor: "pointer", marginBottom: 10, userSelect: "none" }}>
             <div onClick={() => setAutoRestart(!autoRestart)}
               style={{ width: 36, height: 20, borderRadius: 10, background: autoRestart ? "#5865F2" : "#20202a", border: `1px solid ${autoRestart ? "#5865F2" : "#2a2a3a"}`, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
               <div style={{ position: "absolute", top: 2, left: autoRestart ? 17 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
@@ -135,6 +143,18 @@ export default function AddBotModal({ onAdd, onClose }) {
             <div>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#e3e5e8" }}>Automaattinen uudelleenkäynnistys</p>
               <p style={{ margin: "2px 0 0", fontSize: 11, color: "#4e5058" }}>Botti käynnistyy uudelleen kaatumisen jälkeen</p>
+            </div>
+          </label>
+
+          {/* Auto-start */}
+          <label style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "rgba(59,165,93,0.03)", cursor: "pointer", marginBottom: 22, userSelect: "none" }}>
+            <div onClick={() => setAutoStart(!autoStart)}
+              style={{ width: 36, height: 20, borderRadius: 10, background: autoStart ? "#3ba55d" : "#20202a", border: `1px solid ${autoStart ? "#3ba55d" : "#2a2a3a"}`, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+              <div style={{ position: "absolute", top: 2, left: autoStart ? 17 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#e3e5e8" }}>Käynnisty automaattisesti</p>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#4e5058" }}>Botti käynnistyy kun sovellus avataan</p>
             </div>
           </label>
 
@@ -150,7 +170,7 @@ export default function AddBotModal({ onAdd, onClose }) {
               onMouseEnter={e => { if (!loading) e.currentTarget.style.background = "#4752C4"; }}
               onMouseLeave={e => { if (!loading) e.currentTarget.style.background = "#5865F2"; }}
             >
-              {loading ? "Lisätään…" : <><Plus size={15} /> Lisää botti</>}
+              {loading ? "Tallennetaan…" : isEditMode ? <><Pencil size={15} /> Tallenna muutokset</> : <><Plus size={15} /> Lisää botti</>}
             </button>
           </div>
         </form>

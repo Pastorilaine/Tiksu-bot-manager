@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -13,9 +13,11 @@ autoUpdater.autoInstallOnAppQuit = true;
 
 const store = new Store();
 
-// Map: botId -> { process, manualStop }
+// Map: botId -> { process, manualStop, isRestarting, moduleError }
 const botProcesses = new Map();
 let mainWindow = null;
+let tray = null;
+app.isQuitting = false;
 
 // Suppress GPU shader cache errors (Windows permission issue, harmless)
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
@@ -23,10 +25,32 @@ app.commandLine.appendSwitch('disable-software-rasterizer');
 
 // ─── Window ──────────────────────────────────────────────────────────────────
 
+function saveBounds() {
+  if (mainWindow && !mainWindow.isMaximized() && !mainWindow.isMinimized()) {
+    store.set('windowBounds', mainWindow.getBounds());
+  }
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, '../tiksu_bots_trans.png');
+  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  tray = new Tray(icon);
+  tray.setToolTip('Tiksu Bot Manager');
+  const menu = Menu.buildFromTemplate([
+    { label: 'Avaa hallintapaneeli', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { type: 'separator' },
+    { label: 'Lopeta (pysäyttää botit)', click: () => { app.isQuitting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(menu);
+  tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
+}
+
 function createWindow() {
+  const savedBounds    = store.get('windowBounds', { width: 1280, height: 800 });
+  const savedMaximized = store.get('windowMaximized', false);
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    ...savedBounds,
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#0f0f1a',
@@ -42,9 +66,22 @@ function createWindow() {
     show: false,
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow.show());
-  mainWindow.on('maximize',   () => sendToRenderer('win:maximize-change', true));
-  mainWindow.on('unmaximize', () => sendToRenderer('win:maximize-change', false));
+  mainWindow.once('ready-to-show', () => {
+    if (savedMaximized) mainWindow.maximize();
+    mainWindow.show();
+  });
+  mainWindow.on('maximize',   () => { store.set('windowMaximized', true);  sendToRenderer('win:maximize-change', true); });
+  mainWindow.on('unmaximize', () => { store.set('windowMaximized', false); sendToRenderer('win:maximize-change', false); });
+  mainWindow.on('resize', saveBounds);
+  mainWindow.on('move',   saveBounds);
+
+  // Minimize to tray instead of closing
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
 
   // Block any navigation away from the app (prevents renderer-initiated redirects)
   mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -229,7 +266,7 @@ function startBotProcess(botId) {
   const runtimeLabel = bot.type === 'python'
     ? (hasVenv ? 'Python (venv)' : 'Python')
     : 'Node.js';
-  botProcesses.set(botId, { process: proc, manualStop: false, moduleError: false });
+  botProcesses.set(botId, { process: proc, manualStop: false, isRestarting: false, moduleError: false });
   sendToRenderer('bot:status', { botId, status: 'online' });
   sendToRenderer('bot:log', {
     botId,
@@ -313,7 +350,8 @@ function startBotProcess(botId) {
 
   proc.on('close', (code) => {
     const info = botProcesses.get(botId);
-    const wasManual = info ? info.manualStop : false;
+    const wasManual     = info ? info.manualStop   : false;
+    const isRestarting  = info ? info.isRestarting : false;
     const hadModuleError = info ? info.moduleError : false;
     botProcesses.delete(botId);
 
@@ -323,7 +361,9 @@ function startBotProcess(botId) {
 
     // Human-readable exit message
     let exitMsg;
-    if (wasManual) {
+    if (isRestarting) {
+      exitMsg = '↻ Käynnistetään uudelleen...';
+    } else if (wasManual) {
       exitMsg = '■ Botti pysäytetty';
     } else if (code === 0) {
       exitMsg = '■ Botti sulkeutui normaalisti';
@@ -336,12 +376,13 @@ function startBotProcess(botId) {
     sendToRenderer('bot:log', {
       botId,
       message: exitMsg,
-      type: wasManual || code === 0 ? 'system' : 'error',
+      type: isRestarting || wasManual || code === 0 ? 'system' : 'error',
       ts: Date.now(),
     });
 
-    // Don't auto-restart if missing module — it would loop forever
-    if (willRestart) {
+    if (isRestarting) {
+      // Status stays 'restarting' (set by App.jsx); startBotProcess runs via setTimeout in restart IPC
+    } else if (willRestart) {
       sendToRenderer('bot:status', { botId, status: 'restarting' });
       setTimeout(() => startBotProcess(botId), 3000);
     } else {
@@ -403,6 +444,7 @@ ipcMain.handle('bot:add', (_, data) => {
     type,
     filePath,
     autoRestart: data.autoRestart === true || data.autoRestart === false ? data.autoRestart : true,
+    autoStart:   data.autoStart   === true,
     envVars,
     createdAt: Date.now(),
   };
@@ -417,10 +459,20 @@ ipcMain.handle('bot:update', (_, { id, updates }) => {
   if (idx === -1) return null;
 
   // Whitelist — renderer can only change these fields, nothing else
+  const ALLOWED_TYPES = ['python', 'js'];
+  const ALLOWED_EXTS  = ['.py', '.js', '.mjs', '.cjs', '.ts'];
   const allowed = {};
   if (typeof updates.name        === 'string')  allowed.name        = updates.name.trim().slice(0, 100);
   if (updates.autoRestart === true || updates.autoRestart === false)
                                                 allowed.autoRestart = updates.autoRestart;
+  if (updates.autoStart   === true || updates.autoStart   === false)
+                                                allowed.autoStart   = updates.autoStart;
+  if (ALLOWED_TYPES.includes(updates.type))     allowed.type        = updates.type;
+  if (typeof updates.filePath === 'string') {
+    const fp  = path.normalize(updates.filePath);
+    const ext = path.extname(fp).toLowerCase();
+    if (ALLOWED_EXTS.includes(ext) && fs.existsSync(fp)) allowed.filePath = fp;
+  }
   if (updates.envVars && typeof updates.envVars === 'object') {
     const envVars = {};
     for (const [k, v] of Object.entries(updates.envVars)) {
@@ -448,7 +500,8 @@ ipcMain.handle('bot:stop', (_, botId) => stopBotProcess(botId));
 ipcMain.handle('bot:restart', (_, botId) => {
   const info = botProcesses.get(botId);
   if (info) {
-    info.manualStop = true;
+    info.manualStop  = true;
+    info.isRestarting = true;
     info.process.kill('SIGTERM');
     setTimeout(() => startBotProcess(botId), 1500);
   } else {
@@ -554,6 +607,18 @@ autoUpdater.on('error', (err) => {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   createWindow();
+  createTray();
+
+  // Auto-start bots that have autoStart enabled
+  const autoStartBots = getBots().filter((b) => b.autoStart);
+  if (autoStartBots.length > 0) {
+    setTimeout(() => {
+      for (const bot of autoStartBots) {
+        if (!botProcesses.has(bot.id)) startBotProcess(bot.id);
+      }
+    }, 2500);
+  }
+
   // Check for updates 5 s after start, then every hour (only in packaged app)
   if (app.isPackaged) {
     setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
@@ -562,12 +627,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // Clean up all child processes before quitting
-  for (const [, info] of botProcesses) {
-    try { info.process.kill('SIGTERM'); } catch (_) {}
-  }
-  botProcesses.clear();
-  if (process.platform !== 'darwin') app.quit();
+  // Only quit when explicitly requested (e.g. from tray menu)
+  // Normally the window is just hidden, bots keep running.
+  if (app.isQuitting && process.platform !== 'darwin') app.quit();
 });
 
 app.on('activate', () => {

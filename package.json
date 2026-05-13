@@ -1,6 +1,6 @@
 {
   "name": "tiksu-bot-manager",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Tiksu Bot Manager – IT-Veljekset hallintapaneeli",
   "main": "electron/main.js",
   "scripts": {

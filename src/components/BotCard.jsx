@@ -1,4 +1,4 @@
-﻿import { Play, Square, RotateCw, Settings, Trash2, AlertCircle, Loader2 } from "lucide-react";
+﻿import { Play, Square, RotateCw, Settings, Trash2, AlertCircle, Loader2, Pencil } from "lucide-react";
 import { useUptime, formatUptime } from "../hooks/useUptime.js";
 
 const STATUS = {
@@ -14,7 +14,7 @@ const TYPE_COLORS = {
   js:     { bg: "rgba(247,208,2,0.08)",  color: "#c8a800", border: "rgba(247,208,2,0.18)"  },
 };
 
-export default function BotCard({ bot, status, startedAt, isSelected, onSelect, onStart, onStop, onRestart, onDelete, onEnv }) {
+export default function BotCard({ bot, status, startedAt, isSelected, onSelect, onStart, onStop, onRestart, onDelete, onEnv, onEdit }) {
   const elapsed = useUptime(startedAt);
   const uptime  = formatUptime(elapsed);
   const cfg     = STATUS[status] ?? STATUS.offline;
@@ -87,10 +87,19 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
           </>
         )}
         <div style={{ flex: 1 }} />
-        <button onClick={stop(onEnv)} title="Ympäristömuuttujat" style={iconBtn()}>
+        <button onClick={stop(onEdit)} title="Muokkaa bottia" style={iconBtn()}
+          onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.color = "#4e5058"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
+          <Pencil size={12} />
+        </button>
+        <button onClick={stop(onEnv)} title="Ympäristömuuttujat" style={iconBtn()}
+          onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.color = "#4e5058"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
           <Settings size={12} />
         </button>
-        <button onClick={stop(onDelete)} title="Poista botti" style={iconBtn(true)}>
+        <button onClick={stop(onDelete)} title="Poista botti" style={iconBtn(true)}
+          onMouseEnter={e => { e.currentTarget.style.color = "#ed4245"; e.currentTarget.style.borderColor = "rgba(237,66,69,0.35)"; }}
+          onMouseLeave={e => { e.currentTarget.style.color = "#6b3030"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
           <Trash2 size={12} />
         </button>
       </div>
@@ -114,7 +123,7 @@ function iconBtn(isDanger = false) {
   return {
     width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
     borderRadius: 7, border: "1px solid #1e1e2a",
-    background: "transparent", color: isDanger ? "#4e5058" : "#4e5058",
+    background: "transparent", color: isDanger ? "#6b3030" : "#4e5058",
     cursor: "pointer", transition: "all 0.1s", flexShrink: 0,
   };
 }

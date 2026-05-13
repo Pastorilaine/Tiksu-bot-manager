@@ -5,6 +5,7 @@ import AddBotModal from "./components/AddBotModal.jsx";
 import LogPanel from "./components/LogPanel.jsx";
 import EnvModal from "./components/EnvModal.jsx";
 import TitleBar from "./components/TitleBar.jsx";
+import ConfirmModal from "./components/ConfirmModal.jsx";
 
 const MAX_LOG_LINES = 2000;
 
@@ -16,6 +17,8 @@ export default function App() {
   const [selectedBotId, setSelectedBotId] = useState(null);
   const [showAddModal, setShowAddModal]   = useState(false);
   const [showEnvModal, setShowEnvModal]   = useState(null);
+  const [editBot, setEditBot]             = useState(null);  // bot object to edit
+  const [confirmDelete, setConfirmDelete] = useState(null); // bot id to delete
 
   // ── Update state ──────────────────────────────────────────────────────────────
   // States: null | 'available' | 'downloading' | 'ready' | 'error'
@@ -63,7 +66,8 @@ export default function App() {
   }, []);
 
   const handleAdd    = async (data) => { const b = await window.api.addBot(data); if (b?.error) { alert(b.error); return; } setBots((p) => [...p, b]); setStatuses((p) => ({ ...p, [b.id]: "offline" })); setShowAddModal(false); };
-  const handleDelete = async (id)   => { if (!window.confirm("Poistetaanko botti pysyvästi?")) return; await window.api.deleteBot(id); setBots((p) => p.filter((b) => b.id !== id)); if (selectedBotId === id) setSelectedBotId(null); };
+  const handleEdit   = async (id, data) => { const b = await window.api.updateBot(id, data); if (!b) return; setBots((p) => p.map((x) => x.id === id ? b : x)); setEditBot(null); };
+  const handleDelete = async (id)   => { await window.api.deleteBot(id); setBots((p) => p.filter((b) => b.id !== id)); if (selectedBotId === id) setSelectedBotId(null); setConfirmDelete(null); };
   const handleStart  = async (id)   => { setStatuses((p) => ({ ...p, [id]: "starting" }));   await window.api.startBot(id); };
   const handleStop   = async (id)   => { await window.api.stopBot(id); };
   const handleRestart= async (id)   => { setStatuses((p) => ({ ...p, [id]: "restarting" })); await window.api.restartBot(id); };
@@ -147,8 +151,9 @@ export default function App() {
                 onStart={() => handleStart(bot.id)}
                 onStop={() => handleStop(bot.id)}
                 onRestart={() => handleRestart(bot.id)}
-                onDelete={() => handleDelete(bot.id)}
+                onDelete={() => setConfirmDelete(bot.id)}
                 onEnv={() => setShowEnvModal(bot.id)}
+                onEdit={() => setEditBot(bot)}
               />
             ))
           )}
@@ -185,6 +190,7 @@ export default function App() {
         <div style={{ flex: 1, overflow: "hidden" }}>
         {selectedBot ? (
           <LogPanel
+            key={selectedBot.id}
             bot={selectedBot}
             status={statuses[selectedBot.id] || "offline"}
             startedAt={uptimes[selectedBot.id] ?? null}
@@ -220,11 +226,21 @@ export default function App() {
       </div>
 
       {showAddModal && <AddBotModal onAdd={handleAdd} onClose={() => setShowAddModal(false)} />}
+      {editBot && <AddBotModal initialBot={editBot} onAdd={handleAdd} onEdit={(data) => handleEdit(editBot.id, data)} onClose={() => setEditBot(null)} />}
       {showEnvModal && (
         <EnvModal
           bot={bots.find((b) => b.id === showEnvModal)}
           onSave={(env) => handleSaveEnv(showEnvModal, env)}
           onClose={() => setShowEnvModal(null)}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmModal
+          title="Poista botti"
+          message={`Haluatko varmasti poistaa "${bots.find(b => b.id === confirmDelete)?.name ?? ''}"? Tätä toimintoa ei voi peruuttaa.`}
+          dangerLabel="Poista pysyvästi"
+          onConfirm={() => handleDelete(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
         />
       )}
     </div>
