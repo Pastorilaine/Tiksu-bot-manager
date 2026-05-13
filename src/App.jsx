@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from "react";
-import { Bot, Plus, Activity, Server, Download, RefreshCw, X, ChevronLeft, ChevronRight, Play, Square, RotateCw, Settings } from "lucide-react";
+import { Bot, Plus, Activity, Server, AlertCircle, Download, RefreshCw, X, ChevronLeft, ChevronRight, Play, Square, RotateCw, Settings } from "lucide-react";
 import BotCard from "./components/BotCard.jsx";
 import AddBotModal from "./components/AddBotModal.jsx";
 import LogPanel from "./components/LogPanel.jsx";
@@ -110,49 +110,49 @@ export default function App() {
       <aside style={{ width: sidebarCollapsed ? 48 : 260, flexShrink: 0, background: "#0d0d1a", borderRight: "1px solid #17172a", display: "flex", flexDirection: "column", transition: "width 0.2s ease", overflow: "hidden" }}>
 
         {/* Brand */}
-        <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid #17172a", flexShrink: 0 }}>
+        <div style={{ padding: "14px 14px 12px", borderBottom: "1px solid #17172a", flexShrink: 0 }}>
           {!sidebarCollapsed && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "#5865F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Bot size={18} color="#fff" />
-            </div>
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 700, color: "#f2f3f5", margin: 0, lineHeight: 1.2 }}>Tiksu Bot Manager</p>
-              <p style={{ fontSize: 10, color: "#30303d", margin: 0, marginTop: 2 }}>IT-Veljekset Group</p>
-            </div>
-          </div>
-          )}
+            <>
+              {/* Logo + name */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#5865F2 0%,#4752C4 100%)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 2px 8px rgba(88,101,242,0.3)" }}>
+                  <Bot size={17} color="#fff" />
+                </div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#f2f3f5", margin: 0, lineHeight: 1.2 }}>Tiksu Bot Manager</p>
+                  <p style={{ fontSize: 10, color: "#2a2a3a", margin: 0, marginTop: 1 }}>IT-Veljekset Group</p>
+                </div>
+              </div>
 
-          {/* Stats */}
-          {!sidebarCollapsed && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-            <StatTile icon={<Server size={13} />} value={bots.length} label="Bottia" />
-            <StatTile icon={<Activity size={13} />} value={runningCount} label="Online" highlight={runningCount > 0} />
-          </div>
-          )}
+              {/* Compact inline stats */}
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 10, padding: "6px 10px", borderRadius: 7, background: "rgba(255,255,255,0.02)", border: "1px solid #17172a" }}>
+                <SidebarStat icon={<Server size={11} />} value={bots.length} label="bottia" />
+                <div style={{ width: 1, height: 12, background: "#1e1e35", flexShrink: 0 }} />
+                <SidebarStat icon={<Activity size={11} />} value={runningCount} label="online" color={runningCount > 0 ? "#3ba55d" : undefined} />
+                {errorCount > 0 && (
+                  <>
+                    <div style={{ width: 1, height: 12, background: "#1e1e35", flexShrink: 0 }} />
+                    <SidebarStat icon={<AlertCircle size={11} />} value={errorCount} label={errorCount === 1 ? "virhe" : "virhettä"} color="#ed4245" />
+                  </>
+                )}
+              </div>
 
-          {!sidebarCollapsed && errorCount > 0 && (
-            <div style={{ fontSize: 11, padding: "7px 11px", borderRadius: 8, background: "rgba(237,66,69,0.08)", color: "#ed4245", border: "1px solid rgba(237,66,69,0.2)", marginBottom: 12 }}>
-              ⚠ {errorCount} botti{errorCount > 1 ? "a" : ""} virhetilassa
-            </div>
-          )}
-
-          {!sidebarCollapsed && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: "#5865F2", color: "#fff", border: "none", cursor: "pointer", transition: "background 0.1s" }}
-            onMouseEnter={e => e.currentTarget.style.background = "#4752C4"}
-            onMouseLeave={e => e.currentTarget.style.background = "#5865F2"}
-          >
-            <Plus size={15} /> Lisää botti
-          </button>
+              {/* Add bot button */}
+              <button onClick={() => setShowAddModal(true)}
+                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: "#5865F2", color: "#fff", border: "none", cursor: "pointer", transition: "background 0.1s" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#4752C4"}
+                onMouseLeave={e => e.currentTarget.style.background = "#5865F2"}
+              >
+                <Plus size={14} /> Lisää botti
+              </button>
+            </>
           )}
         </div>
 
         {/* Bot list label + start/stop all */}
         {bots.length > 0 && !sidebarCollapsed && (
           <div style={{ padding: "10px 16px 4px", display: "flex", alignItems: "center", gap: 6 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#30303d", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flex: 1 }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#4a4a62", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flex: 1 }}>
               Botit — {bots.length}
             </p>
             <button onClick={handleStartAll} title="Käynnistä kaikki"
@@ -206,44 +206,47 @@ export default function App() {
           )}
         </div>
 
-        <div style={{ padding: "10px 16px", borderTop: "1px solid #12121f", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          {!sidebarCollapsed && <p style={{ fontSize: 10, color: "#2a2a3a", margin: 0 }}>{appVersion ? `v${appVersion}` : 'v1.0.0'}</p>}
-          {/* Subtle background download progress */}
+        <div style={{ padding: "8px 10px", borderTop: "1px solid #12121f", display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+          {/* Version */}
+          {!sidebarCollapsed && (
+            <span style={{ fontSize: 10, color: "#2a2a3a", flex: 1, paddingLeft: 4 }}>
+              {appVersion ? `v${appVersion}` : ''}
+            </span>
+          )}
+
+          {/* Update download progress */}
           {!sidebarCollapsed && update?.state === 'downloading' && (
-            <div style={{ flex: 1, margin: "0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ flex: 1, height: 3, borderRadius: 2, background: "#1e1e35", overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${update.percent ?? 0}%`, background: "#5865F2", transition: "width 0.4s", borderRadius: 2 }} />
               </div>
               <span style={{ fontSize: 9, color: "#3a3a5a", whiteSpace: "nowrap" }}>{update.percent ?? 0}%</span>
             </div>
           )}
+
+          {/* Check update */}
           {!sidebarCollapsed && update?.state !== 'downloading' && (
-          <button onClick={handleCheckUpdate} disabled={checkingUpdate}
-            title="Tarkista päivitykset"
-            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, background: "transparent", border: "none",
-              cursor: checkingUpdate ? "default" : "pointer",
-              color: checkingUpdate ? "#2a2a3a" : "#3a3a5a", padding: "2px 5px", borderRadius: 4, transition: "color 0.1s" }}
-            onMouseEnter={e => { if (!checkingUpdate) e.currentTarget.style.color = "#5865F2"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = checkingUpdate ? "#2a2a3a" : "#3a3a5a"; }}
-          >
-            <RefreshCw size={10} style={checkingUpdate ? { animation: "spin 1s linear infinite" } : {}} />
-            <span>{checkingUpdate ? "Tarkistetaan…" : "Tarkista"}</span>
-          </button>
+            <SbIconBtn onClick={handleCheckUpdate} disabled={checkingUpdate}
+              title={checkingUpdate ? "Tarkistetaan…" : "Tarkista päivitykset"}>
+              <RefreshCw size={12} style={checkingUpdate ? { animation: "spin 1s linear infinite" } : {}} />
+            </SbIconBtn>
           )}
+
+          {/* Settings */}
           {!sidebarCollapsed && (
-          <button onClick={() => setShowSettings(true)} title="Asetukset"
-            style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: "1px solid #1e1e2a", background: "transparent", color: "#30303d", cursor: "pointer", transition: "all 0.1s" }}
-            onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = "#30303d"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
-            <Settings size={13} />
-          </button>
+            <SbIconBtn onClick={() => setShowSettings(true)} title="Asetukset">
+              <Settings size={13} />
+            </SbIconBtn>
           )}
-          <button onClick={() => setSidebarCollapsed((v) => !v)} title={sidebarCollapsed ? "Laajenna sivupalkki" : "Pienennä sivupalkki"}
-            style={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: "1px solid #1e1e2a", background: "transparent", color: "#30303d", cursor: "pointer", transition: "all 0.1s" }}
-            onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
-            onMouseLeave={e => { e.currentTarget.style.color = "#30303d"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
+
+          {/* Collapse */}
+          <SbIconBtn
+            onClick={() => setSidebarCollapsed(v => !v)}
+            title={sidebarCollapsed ? "Laajenna sivupalkki" : "Pienennä sivupalkki"}
+            extraStyle={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0 }}
+          >
             {sidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-          </button>
+          </SbIconBtn>
         </div>
       </aside>
 
@@ -353,15 +356,24 @@ export default function App() {
   );
 }
 
-function StatTile({ icon, value, label, highlight }) {
+function SidebarStat({ icon, value, label, color = "#4a4a62" }) {
   return (
-    <div style={{ background: "#0b0b14", borderRadius: 8, padding: "10px", border: "1px solid #17172a", textAlign: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, color: highlight ? "#3ba55d" : "#30303d", marginBottom: 4 }}>
-        {icon}
-      </div>
-      <p style={{ fontSize: 18, fontWeight: 700, color: highlight ? "#3ba55d" : "#b5bac1", margin: 0, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: "#30303d", margin: "4px 0 0" }}>{label}</p>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color, flex: 1, justifyContent: "center" }}>
+      {icon}
+      <span style={{ fontWeight: 700 }}>{value}</span>
+      <span style={{ fontSize: 10, opacity: 0.7 }}>{label}</span>
     </div>
+  );
+}
+
+function SbIconBtn({ onClick, title, disabled, children, extraStyle = {} }) {
+  return (
+    <button onClick={disabled ? undefined : onClick} title={title}
+      style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: "1px solid transparent", background: "transparent", color: "#30303d", cursor: disabled ? "default" : "pointer", transition: "all 0.1s", flexShrink: 0, ...extraStyle }}
+      onMouseEnter={e => { if (!disabled) { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.3)"; } }}
+      onMouseLeave={e => { e.currentTarget.style.color = "#30303d"; e.currentTarget.style.borderColor = "transparent"; }}>
+      {children}
+    </button>
   );
 }
 

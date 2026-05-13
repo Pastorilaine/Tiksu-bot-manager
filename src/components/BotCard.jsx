@@ -1,4 +1,5 @@
 ﻿import { useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Play, Square, RotateCw, Settings, Trash2, AlertCircle, Loader2, Pencil, MoreHorizontal } from "lucide-react";
 import { useUptime, formatUptime } from "../hooks/useUptime.js";
 
@@ -25,13 +26,33 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
   const isError   = status === "error";
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ bottom: 0, right: 0 });
   const menuRef = useRef(null);
+  const btnRef  = useRef(null);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+
+  const openMenu = (e) => {
+    e.stopPropagation();
+    if (menuOpen) { setMenuOpen(false); return; }
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMenuPos({
+        bottom: window.innerHeight - rect.top + 6,
+        right:  window.innerWidth  - rect.right,
+      });
+    }
+    setMenuOpen(true);
+  };
 
   // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
-    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    const handler = (e) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target) &&
+        btnRef.current  && !btnRef.current.contains(e.target)
+      ) setMenuOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
@@ -101,15 +122,15 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
 
         {/* ⋯ overflow menu */}
         <div ref={menuRef} style={{ position: "relative" }}>
-          <button onClick={stop(() => setMenuOpen((v) => !v))} title="Lisää toimintoja" style={{ ...iconBtn(), ...(menuOpen ? { color: "#949cf7", borderColor: "rgba(88,101,242,0.35)" } : {}) }}
+          <button ref={btnRef} onClick={openMenu} title="Lisää toimintoja" style={{ ...iconBtn(), ...(menuOpen ? { color: "#949cf7", borderColor: "rgba(88,101,242,0.35)" } : {}) }}
             onMouseEnter={e => { if (!menuOpen) { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; } }}
             onMouseLeave={e => { if (!menuOpen) { e.currentTarget.style.color = "#4e5058"; e.currentTarget.style.borderColor = "#1e1e2a"; } }}>
             <MoreHorizontal size={13} />
           </button>
 
-          {menuOpen && (
+          {menuOpen && createPortal(
             <div style={{
-              position: "absolute", bottom: "calc(100% + 6px)", right: 0, zIndex: 50,
+              position: "fixed", bottom: menuPos.bottom, right: menuPos.right, zIndex: 9999,
               background: "#0f0f1c", border: "1px solid #1e1e35", borderRadius: 9,
               boxShadow: "0 8px 32px rgba(0,0,0,0.6)", minWidth: 148, overflow: "hidden",
             }}>
@@ -117,7 +138,8 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
               <MenuItem icon={<Settings size={12} />} label="Ympäristömuuttujat" onClick={stop(() => { setMenuOpen(false); onEnv(); })} />
               <div style={{ height: 1, background: "#17172a", margin: "3px 0" }} />
               <MenuItem icon={<Trash2 size={12} />} label="Poista botti" onClick={stop(() => { setMenuOpen(false); onDelete(); })} danger />
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

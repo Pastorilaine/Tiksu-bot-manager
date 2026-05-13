@@ -25,7 +25,7 @@ const FILTERS = [
 
 function Ts({ ts }) {
   return (
-    <span style={{ color: "#2a2a4a", minWidth: 58, flexShrink: 0, fontVariantNumeric: "tabular-nums", userSelect: "none" }}>
+    <span style={{ color: "#3d3d5c", minWidth: 58, flexShrink: 0, fontVariantNumeric: "tabular-nums", userSelect: "none" }}>
       {new Date(ts).toLocaleTimeString("fi-FI", { hour12: false })}
     </span>
   );
@@ -159,7 +159,7 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
             ) : (
               <>
                 <HeaderBtn onClick={onStop} color="#ed4245" icon={<Square size={13} />} disabled={isBusy} title="Ctrl+Enter">Pysäytä</HeaderBtn>
-                <HeaderBtn onClick={onRestart} color="#faa81a" icon={<RotateCw size={13} />} disabled={isBusy}>Restart</HeaderBtn>
+                <HeaderBtn onClick={onRestart} color="#faa81a" icon={<RotateCw size={13} />} disabled={isBusy}>Uudelleen</HeaderBtn>
               </>
             )}
             <IconBtn onClick={() => setShowTimestamps((v) => !v)} active={showTimestamps} title="Näytä/piilota aikaleimat">
@@ -273,7 +273,7 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
                 const style = LOG_STYLE[entry.type] ?? LOG_STYLE.stdout;
                 const isCopied = copiedIdx === i;
                 return (
-                  <div key={i}
+                  <div key={i} className="log-row"
                     onClick={() => copyLine(entry.message, i)}
                     style={{
                       display: "flex", alignItems: "flex-start", padding: "1px 20px",
@@ -290,7 +290,7 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
                       {searchQuery ? highlightText(entry.message, searchQuery) : entry.message}
                     </span>
                     <span style={{ marginLeft: 8, flexShrink: 0, color: isCopied ? "#3ba55d" : "#2a2a4a", fontSize: 10, display: "flex", alignItems: "center", minWidth: 13 }}>
-                      {isCopied ? <Check size={11} /> : <Copy size={11} style={{ opacity: 0 }} />}
+                      {isCopied ? <Check size={11} /> : <Copy size={11} className="copy-icon" />}
                     </span>
                   </div>
                 );
@@ -369,7 +369,7 @@ function ghostBtn() {
 function Stat({ icon, label, highlight, danger }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11,
-      color: danger ? "#ed4245" : highlight ? "#3ba55d" : "#3a3a5a" }}>
+      color: danger ? "#ed4245" : highlight ? "#3ba55d" : "#5a5a78" }}>
       {icon}<span>{label}</span>
     </div>
   );
