@@ -1,6 +1,6 @@
 {
   "name": "tiksu-bot-manager",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Tiksu Bot Manager – IT-Veljekset hallintapaneeli",
   "main": "electron/main.js",
   "scripts": {
@@ -23,6 +23,7 @@
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
     "kill-port": "^2.0.1",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.5.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
