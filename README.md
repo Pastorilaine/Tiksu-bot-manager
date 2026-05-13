@@ -1,113 +1,121 @@
 <p align="center">
-  <img src="tiksu_bots_trans.png" alt="Tiksu Bots" width="230" />
+  <img src="tiksu_bots_trans.png" alt="Tiksu Bots" width="220" />
 </p>
 
-# Tiksu Bot Manager
+<h1 align="center">Tiksu Bot Manager</h1>
 
-Tiksu Bot Manager on Windows-työpöytäsovellus Discord-bottien hallintaan. Sovelluksella voi lisätä botteja, käynnistää ja pysäyttää niitä, seurata lokeja, hallita `.env`-muuttujia ja päivittää sovelluksen suoraan GitHub Releases -julkaisuista.
+<p align="center">
+  Windows-sovellus Discord-bottien hallintaan — käynnistä, pysäytä ja seuraa bottejasi yhdessä paikassa.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Pastorilaine/Tiksu-bot-manager/releases/latest">
+    <img src="https://img.shields.io/github/v/release/Pastorilaine/Tiksu-bot-manager?label=Uusin%20versio&color=5865F2" alt="Uusin versio" />
+  </a>
+  <img src="https://img.shields.io/badge/Alusta-Windows%2010%2F11-blue" alt="Windows 10/11" />
+</p>
+
+---
+
+## Lataus ja asennus
+
+1. Avaa [Releases-sivu](https://github.com/Pastorilaine/Tiksu-bot-manager/releases/latest)
+2. Lataa tiedosto nimeltä **`Tiksu.Bot.Manager.Setup.x.x.x.exe`**
+3. Avaa ladattu tiedosto ja seuraa asennusohjetta
+4. Sovellus ilmestyy työpöydälle ja käynnistyy automaattisesti asennuksen jälkeen
+
+> **Huom:** Windows saattaa näyttää varoituksen tuntemattomasta julkaisijasta — klikkaa **Lisätiedot → Suorita joka tapauksessa** jatkaaksesi asennusta.
+
+### Järjestelmävaatimukset
+
+| | |
+|---|---|
+| Käyttöjärjestelmä | Windows 10 tai Windows 11 (64-bit) |
+| Levy | ~200 MB asennukseen |
+| Verkko | Tarvitaan päivitystarkistuksiin |
+
+---
 
 ## Ominaisuudet
 
-- Lisää ja hallitse useita Discord-botteja samasta näkymästä
-- Käynnistä, pysäytä ja uudelleenkäynnistä botit yhdellä klikkauksella
-- Reaaliaikaiset lokit ja virhesuodatus
-- `.env`-tiedoston tuonti botin asetuksiin
-- Automaattinen päivitystarkistus käynnistyksessä ja tunnin välein
-- Manuaalinen päivitystarkistus sovelluksen sivupalkista
-- Oma tumma Tiksu-otsakepalkki ja sovelluslogo
-- Windows-asennusohjelma NSIS-installerilla
+- **Usean botin hallinta** — lisää niin monta bottia kuin tarvitset, jokaisella omat asetukset
+- **Käynnistys / pysäytys / uudelleenkäynnistys** yhdellä klikkauksella
+- **Reaaliaikaiset lokit** — näe mitä botti tulostaa ja suodata pelkät virheet
+- **Ympäristömuuttujat (.env)** — hallitse tokeneja ja asetuksia turvallisesti sovelluksessa
+- **Automaattiset päivitykset** — sovellus ilmoittaa uudesta versiosta ja lataa sen puolestasi
+- **Automaattinen käynnistyksen uudelleenyritys** — botti käynnistetään uudelleen, jos se kaatuu
 
-## Lataus
+---
 
-Uusin Windows-versio löytyy GitHub Releases -sivulta:
+## Käyttöohje
 
-[Lataa uusin Tiksu Bot Manager](https://github.com/Pastorilaine/Tiksu-bot-manager/releases/latest)
+### Botin lisääminen
 
-Lataa tiedosto, jonka nimi on muodossa:
+1. Klikkaa **Lisää botti** sivupalkin yläosasta
+2. Anna botille nimi
+3. Valitse botin **käynnistystiedosto** (yleensä `index.js`, `bot.py` tms.)
+4. Jos botilla on `.env`-tiedosto, klikkaa **Tuo .env-tiedostosta** ja valitse se — ympäristömuuttujat täytetään automaattisesti
+5. Klikkaa **Tallenna**
 
-```text
-Tiksu.Bot.Manager.Setup.x.x.x.exe
-```
+### Botin käynnistäminen
 
-Asenna sovellus normaalisti avaamalla asennustiedosto.
+- Valitse botti sivupalkista
+- Klikkaa **Käynnistä** — botin tila muuttuu **Online**-tilaan
+- Lokit ilmestyvät oikeaan paneeliin reaaliajassa
+
+### Lokien seuranta
+
+- **Kaikki** — näyttää kaiken tulostuksen
+- **Virheet** — näyttää vain virhelokit (punainen luku osoittaa virhelokien määrän)
+- Lokit vierittyvät automaattisesti alas, kun uutta tulostusta tulee
+- Klikkaa **Tyhjennä lokit** nollataksesi näkymän
+
+### Ympäristömuuttujat (.env)
+
+Botin `.env`-tiedosto sisältää yleensä arkaluonteisia tietoja kuten Discord-tokenin. Sovellus tallentaa nämä paikallisesti omaan tiedostoonsa — ei `.env`-tiedostoon levyllä.
+
+- Voit lisätä, muokata ja poistaa muuttujia suoraan sovelluksesta
+- Muutosten jälkeen **käynnistä botti uudelleen**, jotta uudet arvot tulevat voimaan
+
+---
 
 ## Päivitykset
 
-Sovellus käyttää `electron-updater`-päivityksiä GitHub Releases -julkaisuista.
+Sovellus tarkistaa päivitykset automaattisesti:
 
-- Päivitykset tarkistetaan automaattisesti noin 5 sekuntia sovelluksen käynnistyksen jälkeen
-- Sovellus tarkistaa päivitykset uudelleen tunnin välein
-- Päivityksen voi tarkistaa myös käsin sivupalkin alareunan **Tarkista**-napista
-- Kun päivitys on ladattu, sovellus pyytää käynnistämään uudelleen asennusta varten
+- **Käynnistyksen yhteydessä** — noin 5 sekuntia sovelluksen avaamisen jälkeen
+- **Tunnin välein** — niin kauan kuin sovellus on auki
+- **Käsin** — klikkaa sivupalkin alareunan **Tarkista**-nappia milloin tahansa
 
-## Käyttö
+Kun uusi versio on saatavilla, sovelluksen yläreunaanilmestyy ilmoitusbanneri:
 
-1. Avaa Tiksu Bot Manager.
-2. Klikkaa **Lisää botti**.
-3. Valitse botin käynnistystiedosto.
-4. Tuo tarvittaessa `.env`-tiedosto.
-5. Käynnistä botti ja seuraa lokeja pääikkunasta.
+1. Klikkaa **Lataa päivitys** — lataus alkaa taustalla
+2. Kun lataus on valmis, klikkaa **Asenna ja käynnistä uudelleen**
+3. Sovellus sulkeutuu, asentaa päivityksen ja käynnistyy uudelleen
 
-Botin asetuksiin tallennetut tiedot pysyvät paikallisesti käyttäjän koneella `electron-store`-tallennuksessa.
+---
 
-## Kehitys
+## Ongelmatilanteet
 
-Asenna riippuvuudet:
+**Botti ei käynnisty**
+- Tarkista, että käynnistystiedoston polku on oikein botin asetuksissa
+- Varmista, että botti toimii myös terminaalissa suoraan ajettuna
+- Tarkista virhelokit Virheet-välilehdeltä
 
-```bash
-npm install
-```
+**`.env` ei toimi**
+- Muista käynnistää botti uudelleen muutosten jälkeen
+- Varmista, että avain-arvo-parit ovat muodossa `AVAIN=arvo`
 
-Käynnistä kehitystilassa:
+**Sovellus näyttää "Päivityksen tarkistus epäonnistui"**
+- Tarkista internetyhteys
+- Klikkaa bannerin X sulkeaksesi sen ja yritä uudelleen myöhemmin
 
-```bash
-npm run dev
-```
+**Windows estää asennuksen**
+- Klikkaa **Lisätiedot** → **Suorita joka tapauksessa** asennusdialogissa
 
-Rakenna frontend:
+---
 
-```bash
-npm run build
-```
+## Tuki
 
-Rakenna Windows-asennusohjelma:
+Ongelmatilanteissa ota yhteyttä **IT-Veljekset Group** -tiimiin tai avaa [GitHub Issue](https://github.com/Pastorilaine/Tiksu-bot-manager/issues).
 
-```bash
-npm run build:app
-```
-
-Valmis asennusohjelma luodaan `release/`-kansioon.
-
-## Teknologiat
-
-- Electron
-- React
-- Vite
-- Tailwind CSS
-- electron-store
-- electron-updater
-- electron-builder
-- lucide-react
-
-## Julkaisuprosessi
-
-1. Päivitä versio `package.json`-tiedostoon.
-2. Aja build:
-
-```bash
-npm run build
-npx electron-builder
-```
-
-3. Luo GitHub Release ja lisää mukaan:
-
-```text
-Tiksu.Bot.Manager.Setup.x.x.x.exe
-latest.yml
-```
-
-`latest.yml` pitää viitata samaan tiedostonimeen, jonka GitHub näyttää assettina. GitHub muuttaa välilyönnit pisteiksi, joten nimi on yleensä muodossa `Tiksu.Bot.Manager.Setup.x.x.x.exe`.
-
-## Lisenssi
-
-Ei julkista lisenssiä määritelty.
