@@ -9,7 +9,7 @@ const { autoUpdater } = require('electron-updater');
 
 // ─── Auto-updater config ─────────────────────────────────────────────────────
 autoUpdater.autoDownload         = true;   // download silently in background
-autoUpdater.autoInstallOnAppQuit = true;   // install automatically on quit
+autoUpdater.autoInstallOnAppQuit = false;  // we handle this ourselves (silent mode)
 
 const store = new Store();
 
@@ -17,6 +17,7 @@ const store = new Store();
 const botProcesses = new Map();
 let mainWindow = null;
 let tray = null;
+let updateReady = false;  // set to true when an update has been downloaded
 app.isQuitting = false;
 
 // Suppress GPU shader cache errors (Windows permission issue, harmless)
@@ -591,7 +592,8 @@ ipcMain.handle('update:download', () => {
 });
 
 ipcMain.handle('update:install', () => {
-  autoUpdater.quitAndInstall();
+  // isSilent=true: no installer UI, isForceRunAfter=true: relaunch app after install
+  autoUpdater.quitAndInstall(true, true);
 });
 
 ipcMain.handle('update:get-version', () => app.getVersion());
@@ -616,6 +618,7 @@ autoUpdater.on('download-progress', ({ percent }) => {
 });
 
 autoUpdater.on('update-downloaded', (info) => {
+  updateReady = true;
   sendToRenderer('update:downloaded', { version: info.version });
   // Show tray notification so user knows even if window is hidden
   try {
@@ -629,7 +632,7 @@ autoUpdater.on('update-downloaded', (info) => {
     const menu = Menu.buildFromTemplate([
       { label: 'Avaa hallintapaneeli', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
       { type: 'separator' },
-      { label: `⬆ Asenna päivitys v${info.version} nyt`, click: () => { autoUpdater.quitAndInstall(); } },
+      { label: `\u2b06 Asenna p\u00e4ivitys v${info.version} nyt`, click: () => { autoUpdater.quitAndInstall(true, true); } },
       { type: 'separator' },
       { label: 'Lopeta (pysäyttää botit)', click: () => { app.isQuitting = true; app.quit(); } },
     ]);
@@ -678,5 +681,9 @@ app.on('activate', () => {
 app.on('before-quit', () => {
   for (const [, info] of botProcesses) {
     try { info.process.kill('SIGTERM'); } catch (_) {}
+  }
+  // If update downloaded, install silently on quit — no installer UI, app restarts automatically
+  if (updateReady) {
+    try { autoUpdater.quitAndInstall(true, true); } catch (_) {}
   }
 });
