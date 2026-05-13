@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -268,6 +268,7 @@ function startBotProcess(botId) {
     : 'Node.js';
   botProcesses.set(botId, { process: proc, manualStop: false, isRestarting: false, moduleError: false });
   sendToRenderer('bot:status', { botId, status: 'online' });
+  try { new Notification({ title: 'Tiksu Bot Manager', body: `✅ ${bot.name} on nyt online` }).show(); } catch (_) {}
   sendToRenderer('bot:log', {
     botId,
     message: `▶ Botti käynnistetty · ${runtimeLabel}`,
@@ -345,6 +346,7 @@ function startBotProcess(botId) {
   proc.on('error', (err) => {
     sendToRenderer('bot:log', { botId, message: `Virhe: ${err.message}`, type: 'error', ts: Date.now() });
     sendToRenderer('bot:status', { botId, status: 'error' });
+    try { const nb = getBots().find(b => b.id === botId); new Notification({ title: 'Tiksu Bot Manager', body: `⚠ ${nb?.name ?? botId} kaatui` }).show(); } catch (_) {}
     botProcesses.delete(botId);
   });
 
@@ -551,6 +553,24 @@ ipcMain.handle('dialog:pick-env', async () => {
     if (!stat.isFile() || stat.size > 65536) return null;
     return { filePath: result.filePaths[0], content: fs.readFileSync(result.filePaths[0], 'utf8') };
   } catch { return null; }
+});
+
+// ─── Log export ──────────────────────────────────────────────────────────────
+
+ipcMain.handle('logs:export', async (_, { botName, content }) => {
+  if (typeof botName !== 'string' || typeof content !== 'string') return false;
+  const safeName = botName.replace(/[^a-zA-Z0-9_\- ]/g, '').slice(0, 80) || 'lokit';
+  const date = new Date().toISOString().slice(0, 10);
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Tallenna lokit',
+    defaultPath: `${safeName}-${date}.log`,
+    filters: [
+      { name: 'Log-tiedostot', extensions: ['log'] },
+      { name: 'Tekstitiedostot', extensions: ['txt'] },
+    ],
+  });
+  if (result.canceled || !result.filePath) return false;
+  try { fs.writeFileSync(result.filePath, content, 'utf8'); return true; } catch { return false; }
 });
 
 // ─── Update IPC handlers ─────────────────────────────────────────────────────

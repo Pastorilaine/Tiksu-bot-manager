@@ -1,4 +1,5 @@
-﻿import { Play, Square, RotateCw, Settings, Trash2, AlertCircle, Loader2, Pencil } from "lucide-react";
+﻿import { useRef, useState, useEffect } from "react";
+import { Play, Square, RotateCw, Settings, Trash2, AlertCircle, Loader2, Pencil, MoreHorizontal } from "lucide-react";
 import { useUptime, formatUptime } from "../hooks/useUptime.js";
 
 const STATUS = {
@@ -23,7 +24,17 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
   const isBusy    = status === "starting" || status === "restarting";
   const isError   = status === "error";
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
 
   return (
     <div
@@ -87,23 +98,48 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
           </>
         )}
         <div style={{ flex: 1 }} />
-        <button onClick={stop(onEdit)} title="Muokkaa bottia" style={iconBtn()}
-          onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
-          onMouseLeave={e => { e.currentTarget.style.color = "#4e5058"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
-          <Pencil size={12} />
-        </button>
-        <button onClick={stop(onEnv)} title="Ympäristömuuttujat" style={iconBtn()}
-          onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
-          onMouseLeave={e => { e.currentTarget.style.color = "#4e5058"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
-          <Settings size={12} />
-        </button>
-        <button onClick={stop(onDelete)} title="Poista botti" style={iconBtn(true)}
-          onMouseEnter={e => { e.currentTarget.style.color = "#ed4245"; e.currentTarget.style.borderColor = "rgba(237,66,69,0.35)"; }}
-          onMouseLeave={e => { e.currentTarget.style.color = "#6b3030"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
-          <Trash2 size={12} />
-        </button>
+
+        {/* ⋯ overflow menu */}
+        <div ref={menuRef} style={{ position: "relative" }}>
+          <button onClick={stop(() => setMenuOpen((v) => !v))} title="Lisää toimintoja" style={{ ...iconBtn(), ...(menuOpen ? { color: "#949cf7", borderColor: "rgba(88,101,242,0.35)" } : {}) }}
+            onMouseEnter={e => { if (!menuOpen) { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; } }}
+            onMouseLeave={e => { if (!menuOpen) { e.currentTarget.style.color = "#4e5058"; e.currentTarget.style.borderColor = "#1e1e2a"; } }}>
+            <MoreHorizontal size={13} />
+          </button>
+
+          {menuOpen && (
+            <div style={{
+              position: "absolute", bottom: "calc(100% + 6px)", right: 0, zIndex: 50,
+              background: "#0f0f1c", border: "1px solid #1e1e35", borderRadius: 9,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.6)", minWidth: 148, overflow: "hidden",
+            }}>
+              <MenuItem icon={<Pencil size={12} />} label="Muokkaa" onClick={stop(() => { setMenuOpen(false); onEdit(); })} />
+              <MenuItem icon={<Settings size={12} />} label="Ympäristömuuttujat" onClick={stop(() => { setMenuOpen(false); onEnv(); })} />
+              <div style={{ height: 1, background: "#17172a", margin: "3px 0" }} />
+              <MenuItem icon={<Trash2 size={12} />} label="Poista botti" onClick={stop(() => { setMenuOpen(false); onDelete(); })} danger />
+            </div>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function MenuItem({ icon, label, onClick, danger }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 13px",
+        background: hover ? (danger ? "rgba(237,66,69,0.08)" : "rgba(88,101,242,0.08)") : "transparent",
+        border: "none", cursor: "pointer", textAlign: "left",
+        color: danger ? (hover ? "#ed4245" : "#6b3030") : (hover ? "#949cf7" : "#b5bac1"),
+        fontSize: 12, fontWeight: 500, transition: "all 0.1s",
+      }}>
+      {icon}{label}
+    </button>
   );
 }
 

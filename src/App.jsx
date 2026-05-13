@@ -1,11 +1,12 @@
 ﻿import { useState, useEffect, useCallback } from "react";
-import { Bot, Plus, Activity, Server, Download, RefreshCw, X } from "lucide-react";
+import { Bot, Plus, Activity, Server, Download, RefreshCw, X, ChevronLeft, ChevronRight, Play, Square, RotateCw } from "lucide-react";
 import BotCard from "./components/BotCard.jsx";
 import AddBotModal from "./components/AddBotModal.jsx";
 import LogPanel from "./components/LogPanel.jsx";
 import EnvModal from "./components/EnvModal.jsx";
 import TitleBar from "./components/TitleBar.jsx";
 import ConfirmModal from "./components/ConfirmModal.jsx";
+import { formatUptime } from "./hooks/useUptime.js";
 
 const MAX_LOG_LINES = 2000;
 
@@ -19,6 +20,7 @@ export default function App() {
   const [showEnvModal, setShowEnvModal]   = useState(null);
   const [editBot, setEditBot]             = useState(null);  // bot object to edit
   const [confirmDelete, setConfirmDelete] = useState(null); // bot id to delete
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // ── Update state ──────────────────────────────────────────────────────────────
   // States: null | 'available' | 'downloading' | 'ready' | 'error'
@@ -88,10 +90,11 @@ export default function App() {
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
       {/* ── Sidebar ─────────────────────────────────────────────── */}
-      <aside style={{ width: 260, flexShrink: 0, background: "#0d0d1a", borderRight: "1px solid #17172a", display: "flex", flexDirection: "column" }}>
+      <aside style={{ width: sidebarCollapsed ? 48 : 260, flexShrink: 0, background: "#0d0d1a", borderRight: "1px solid #17172a", display: "flex", flexDirection: "column", transition: "width 0.2s ease", overflow: "hidden" }}>
 
         {/* Brand */}
-        <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid #17172a" }}>
+        <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid #17172a", flexShrink: 0 }}>
+          {!sidebarCollapsed && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
             <div style={{ width: 34, height: 34, borderRadius: 9, background: "#5865F2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Bot size={18} color="#fff" />
@@ -101,19 +104,23 @@ export default function App() {
               <p style={{ fontSize: 10, color: "#30303d", margin: 0, marginTop: 2 }}>IT-Veljekset Group</p>
             </div>
           </div>
+          )}
 
           {/* Stats */}
+          {!sidebarCollapsed && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
             <StatTile icon={<Server size={13} />} value={bots.length} label="Bottia" />
             <StatTile icon={<Activity size={13} />} value={runningCount} label="Online" highlight={runningCount > 0} />
           </div>
+          )}
 
-          {errorCount > 0 && (
+          {!sidebarCollapsed && errorCount > 0 && (
             <div style={{ fontSize: 11, padding: "7px 11px", borderRadius: 8, background: "rgba(237,66,69,0.08)", color: "#ed4245", border: "1px solid rgba(237,66,69,0.2)", marginBottom: 12 }}>
               ⚠ {errorCount} botti{errorCount > 1 ? "a" : ""} virhetilassa
             </div>
           )}
 
+          {!sidebarCollapsed && (
           <button
             onClick={() => setShowAddModal(true)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: "#5865F2", color: "#fff", border: "none", cursor: "pointer", transition: "background 0.1s" }}
@@ -122,10 +129,11 @@ export default function App() {
           >
             <Plus size={15} /> Lisää botti
           </button>
+          )}
         </div>
 
         {/* Bot list label */}
-        {bots.length > 0 && (
+        {bots.length > 0 && !sidebarCollapsed && (
           <div style={{ padding: "14px 16px 6px" }}>
             <p style={{ fontSize: 10, fontWeight: 700, color: "#30303d", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
               Botit — {bots.length}
@@ -134,13 +142,25 @@ export default function App() {
         )}
 
         {/* Bot list */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px 12px" }}>
-          {bots.length === 0 ? (
+        <div style={{ flex: 1, overflowY: "auto", padding: sidebarCollapsed ? "8px 0" : "4px 8px 12px" }}>
+          {bots.length === 0 && !sidebarCollapsed ? (
             <div style={{ textAlign: "center", padding: "48px 20px 0", color: "#20202a" }}>
               <Bot size={32} style={{ margin: "0 auto 12px" }} />
               <p style={{ fontSize: 13, color: "#2a2a3a", marginBottom: 6 }}>Ei botteja vielä</p>
               <p style={{ fontSize: 11, lineHeight: 1.5 }}>Lisää ensimmäinen botti yllä olevalla napilla.</p>
             </div>
+          ) : sidebarCollapsed ? (
+            // Collapsed: show status dots only
+            bots.map((bot) => {
+              const s = statuses[bot.id] || "offline";
+              const dotColor = s === "online" ? "#3ba55d" : s === "error" ? "#ed4245" : s === "restarting" || s === "starting" ? "#faa81a" : "#4e5058";
+              return (
+                <button key={bot.id} onClick={() => { setSelectedBotId(bot.id); setSidebarCollapsed(false); }} title={bot.name}
+                  style={{ width: 48, height: 40, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: selectedBotId === bot.id ? "rgba(88,101,242,0.15)" : "transparent", cursor: "pointer" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                </button>
+              );
+            })
           ) : (
             bots.map((bot) => (
               <BotCard key={bot.id} bot={bot}
@@ -159,8 +179,9 @@ export default function App() {
           )}
         </div>
 
-        <div style={{ padding: "10px 16px", borderTop: "1px solid #12121f", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <p style={{ fontSize: 10, color: "#2a2a3a", margin: 0 }}>{appVersion ? `v${appVersion}` : 'v1.0.0'}</p>
+        <div style={{ padding: "10px 16px", borderTop: "1px solid #12121f", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          {!sidebarCollapsed && <p style={{ fontSize: 10, color: "#2a2a3a", margin: 0 }}>{appVersion ? `v${appVersion}` : 'v1.0.0'}</p>}
+          {!sidebarCollapsed && (
           <button onClick={handleCheckUpdate} disabled={checkingUpdate || update?.state === 'downloading'}
             title="Tarkista päivitykset"
             style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, background: "transparent", border: "none",
@@ -171,6 +192,13 @@ export default function App() {
           >
             <RefreshCw size={10} style={checkingUpdate ? { animation: "spin 1s linear infinite" } : {}} />
             <span>{checkingUpdate ? "Tarkistetaan…" : "Tarkista"}</span>
+          </button>
+          )}
+          <button onClick={() => setSidebarCollapsed((v) => !v)} title={sidebarCollapsed ? "Laajenna sivupalkki" : "Pienennä sivupalkki"}
+            style={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7, border: "1px solid #1e1e2a", background: "transparent", color: "#30303d", cursor: "pointer", transition: "all 0.1s" }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#30303d"; e.currentTarget.style.borderColor = "#1e1e2a"; }}>
+            {sidebarCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
           </button>
         </div>
       </aside>
@@ -206,16 +234,45 @@ export default function App() {
             <p style={{ fontSize: 14, color: "#2a2a3a", fontWeight: 600, margin: "0 0 6px" }}>Valitse botti sivupalkista</p>
             <p style={{ fontSize: 12 }}>Nähdäksesi lokit ja hallitaksesi bottia</p>
             {bots.length > 0 && (
-              <div style={{ display: "flex", gap: 8, marginTop: 24, flexWrap: "wrap", justifyContent: "center" }}>
-                {bots.slice(0, 5).map((b) => (
-                  <button key={b.id} onClick={() => setSelectedBotId(b.id)}
-                    style={{ padding: "7px 16px", fontSize: 12, fontWeight: 600, borderRadius: 8, background: "transparent", color: "#3a3a5a", border: "1px solid #17172a", cursor: "pointer", transition: "all 0.1s" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = "#5865F2"; e.currentTarget.style.color = "#949cf7"; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#17172a"; e.currentTarget.style.color = "#3a3a5a"; }}
-                  >
-                    {b.name}
-                  </button>
-                ))}
+              <div style={{ marginTop: 32, width: "100%", maxWidth: 700, padding: "0 32px" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#30303d", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>Kaikki botit</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                  {bots.map((b) => {
+                    const s = statuses[b.id] || "offline";
+                    const dotColor = s === "online" ? "#3ba55d" : s === "error" ? "#ed4245" : s === "restarting" || s === "starting" ? "#faa81a" : "#4e5058";
+                    const isBusy = s === "starting" || s === "restarting";
+                    return (
+                      <div key={b.id}
+                        onClick={() => setSelectedBotId(b.id)}
+                        style={{ background: "#0f0f1c", border: "1px solid #1e1e2a", borderRadius: 10, padding: "12px 14px", cursor: "pointer", transition: "border-color 0.1s" }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = "#5865F2"}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e2a"}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#e3e5e8", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</span>
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: b.type === "python" ? "rgba(59,130,246,0.15)" : "rgba(250,204,21,0.15)", color: b.type === "python" ? "#60a5fa" : "#fbbf24" }}>
+                            {b.type === "python" ? "PY" : "JS"}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 11, color: dotColor, margin: "0 0 8px", paddingLeft: 15 }}>{s.charAt(0).toUpperCase() + s.slice(1)}</p>
+                        <div style={{ display: "flex", gap: 6, paddingLeft: 15 }}>
+                          {s !== "online" && !isBusy ? (
+                            <button onClick={e => { e.stopPropagation(); handleStart(b.id); }}
+                              style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, background: "rgba(59,165,93,0.12)", color: "#3ba55d", border: "1px solid rgba(59,165,93,0.25)", cursor: "pointer" }}>
+                              <Play size={10} /> Käynnistä
+                            </button>
+                          ) : (
+                            <button onClick={e => { e.stopPropagation(); handleStop(b.id); }} disabled={isBusy}
+                              style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 6, background: isBusy ? "transparent" : "rgba(237,66,69,0.12)", color: isBusy ? "#30303d" : "#ed4245", border: `1px solid ${isBusy ? "#1a1a2a" : "rgba(237,66,69,0.25)"}`, cursor: isBusy ? "default" : "pointer" }}>
+                              <Square size={10} /> Pysäytä
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
