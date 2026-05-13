@@ -1,0 +1,71 @@
+{
+  "name": "tiksu-bot-manager",
+  "version": "1.0.0",
+  "description": "Tiksu Bot Manager – IT-Veljekset hallintapaneeli",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "npx kill-port 5173 --silent & concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev:vite": "vite",
+    "dev:electron": "electron .",
+    "build": "vite build",
+    "build:app": "npm run build && electron-builder",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "electron-store": "^7.0.3",
+    "electron-updater": "^6.8.3",
+    "lucide-react": "^1.14.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "kill-port": "^2.0.1",
+    "postcss": "^8.5.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.11",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.itveljekset.tiksu-bot-manager",
+    "productName": "Tiksu Bot Manager",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Tiksu Bot Manager"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Pastorilaine",
+        "repo": "Tiksu-bot-manager",
+        "releaseType": "release"
+      }
+    ]
+  }
+}
