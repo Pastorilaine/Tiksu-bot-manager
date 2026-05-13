@@ -33,6 +33,7 @@ function Ts({ ts }) {
 export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop, onRestart, onClearLogs }) {
   const scrollRef = useRef(null);
   const isAtBottomRef = useRef(true);
+  const prevLogsLengthRef = useRef(0);
   const [newCount, setNewCount] = useState(0);
   const [filter, setFilter]     = useState("all");
 
@@ -57,15 +58,25 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
     else           { isAtBottomRef.current = false; }
   }, []);
 
-  // Auto-scroll only when already at bottom
+  // Auto-scroll; track actual number of new lines
   useEffect(() => {
+    const newLines = logs.length - prevLogsLengthRef.current;
+    prevLogsLengthRef.current = logs.length;
+    if (newLines <= 0) return;
     if (isAtBottomRef.current) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
       setNewCount(0);
     } else {
-      setNewCount((n) => n + 1);
+      setNewCount((n) => n + newLines);
     }
   }, [logs]);
+
+  // Reset scroll and counter when filter changes
+  useEffect(() => {
+    setNewCount(0);
+    isAtBottomRef.current = true;
+    setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }), 0);
+  }, [filter]);
 
   const scrollToBottom = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

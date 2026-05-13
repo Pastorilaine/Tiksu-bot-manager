@@ -543,9 +543,10 @@ autoUpdater.on('error', (err) => {
 
 app.whenReady().then(() => {
   createWindow();
-  // Check for updates 5 s after start (only in packaged app)
+  // Check for updates 5 s after start, then every hour (only in packaged app)
   if (app.isPackaged) {
     setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
+    setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 60 * 60 * 1000);
   }
 });
 

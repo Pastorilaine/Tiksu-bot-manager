@@ -5,7 +5,7 @@ import AddBotModal from "./components/AddBotModal.jsx";
 import LogPanel from "./components/LogPanel.jsx";
 import EnvModal from "./components/EnvModal.jsx";
 
-const MAX_LOG_LINES = 500;
+const MAX_LOG_LINES = 2000;
 
 export default function App() {
   const [bots, setBots]             = useState([]);
@@ -20,6 +20,7 @@ export default function App() {
   // States: null | 'available' | 'downloading' | 'ready' | 'error'
   const [update, setUpdate] = useState(null);   // { state, version?, percent?, message? }
   const [appVersion, setAppVersion] = useState('');
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   const loadBots = useCallback(async () => {
     const list = await window.api.listBots();
@@ -52,11 +53,12 @@ export default function App() {
 
   // ── Updater event listeners ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const a = window.api.onUpdateAvailable?.   ((d) => setUpdate({ state: 'available', version: d.version }));
+    const a = window.api.onUpdateAvailable?.   ((d) => { setCheckingUpdate(false); setUpdate({ state: 'available', version: d.version }); });
     const b = window.api.onUpdateProgress?.    ((d) => setUpdate((u) => ({ ...u, state: 'downloading', percent: d.percent })));
     const c = window.api.onUpdateDownloaded?.  ((d) => setUpdate({ state: 'ready', version: d.version }));
-    const e = window.api.onUpdateError?.       ((d) => setUpdate({ state: 'error', message: d.message }));
-    return () => { a?.(); b?.(); c?.(); e?.(); };
+    const nu = window.api.onUpdateNotAvailable?.(() => setCheckingUpdate(false));
+    const e = window.api.onUpdateError?.       ((d) => { setCheckingUpdate(false); setUpdate({ state: 'error', message: d.message }); });
+    return () => { a?.(); b?.(); c?.(); nu?.(); e?.(); };
   }, []);
 
   const handleAdd    = async (data) => { const b = await window.api.addBot(data); if (b?.error) { alert(b.error); return; } setBots((p) => [...p, b]); setStatuses((p) => ({ ...p, [b.id]: "offline" })); setShowAddModal(false); };
@@ -65,6 +67,11 @@ export default function App() {
   const handleStop   = async (id)   => { await window.api.stopBot(id); };
   const handleRestart= async (id)   => { setStatuses((p) => ({ ...p, [id]: "restarting" })); await window.api.restartBot(id); };
   const handleSaveEnv= async (id, envVars) => { await window.api.updateBot(id, { envVars }); setBots((p) => p.map((b) => b.id === id ? { ...b, envVars } : b)); setShowEnvModal(null); };
+  const handleCheckUpdate = async () => {
+    if (checkingUpdate || update?.state === 'downloading') return;
+    setCheckingUpdate(true);
+    await window.api.checkForUpdate?.();
+  };
 
   const runningCount = Object.values(statuses).filter((s) => s === "online").length;
   const errorCount   = Object.values(statuses).filter((s) => s === "error").length;
@@ -144,8 +151,19 @@ export default function App() {
           )}
         </div>
 
-        <div style={{ padding: "10px 16px", borderTop: "1px solid #12121f", textAlign: "center" }}>
-          <p style={{ fontSize: 10, color: "#20202a", margin: 0 }}>{appVersion ? `v${appVersion}` : 'v1.0.0'}</p>
+        <div style={{ padding: "10px 16px", borderTop: "1px solid #12121f", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <p style={{ fontSize: 10, color: "#2a2a3a", margin: 0 }}>{appVersion ? `v${appVersion}` : 'v1.0.0'}</p>
+          <button onClick={handleCheckUpdate} disabled={checkingUpdate || update?.state === 'downloading'}
+            title="Tarkista päivitykset"
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, background: "transparent", border: "none",
+              cursor: (checkingUpdate || update?.state === 'downloading') ? "default" : "pointer",
+              color: checkingUpdate ? "#2a2a3a" : "#3a3a5a", padding: "2px 5px", borderRadius: 4, transition: "color 0.1s" }}
+            onMouseEnter={e => { if (!checkingUpdate) e.currentTarget.style.color = "#5865F2"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = checkingUpdate ? "#2a2a3a" : "#3a3a5a"; }}
+          >
+            <RefreshCw size={10} style={checkingUpdate ? { animation: "spin 1s linear infinite" } : {}} />
+            <span>{checkingUpdate ? "Tarkistetaan…" : "Tarkista"}</span>
+          </button>
         </div>
       </aside>
 
@@ -153,7 +171,7 @@ export default function App() {
       <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
         {/* Update banner */}
-        {update && update.state !== 'error' && (
+        {update && (
           <UpdateBanner update={update}
             onDownload={() => { setUpdate((u) => ({ ...u, state: 'downloading', percent: 0 })); window.api.downloadUpdate(); }}
             onInstall={() => window.api.installUpdate()}
@@ -223,6 +241,14 @@ function StatTile({ icon, value, label, highlight }) {
 function UpdateBanner({ update, onDownload, onInstall, onDismiss }) {
   const isReady       = update.state === 'ready';
   const isDownloading = update.state === 'downloading';
+  const isError       = update.state === 'error';
+
+  if (isError) return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 20px", background: "rgba(237,66,69,0.08)", borderBottom: "1px solid rgba(237,66,69,0.2)", flexShrink: 0 }}>
+      <span style={{ flex: 1, fontSize: 12, color: "#ed4245" }}>Päivityksen tarkistus epäonnistui — tarkista internetyhteys</span>
+      <button onClick={onDismiss} style={{ padding: 4, borderRadius: 5, border: "none", background: "transparent", cursor: "pointer", color: "#4e5058" }}><X size={13} /></button>
+    </div>
+  );
 
   return (
     <div style={{
