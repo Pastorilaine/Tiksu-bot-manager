@@ -81,7 +81,16 @@ export default function App() {
   const handleStart  = async (id)   => { setStatuses((p) => ({ ...p, [id]: "starting" }));   await window.api.startBot(id); };
   const handleStop   = async (id)   => { await window.api.stopBot(id); };
   const handleRestart= async (id)   => { setStatuses((p) => ({ ...p, [id]: "restarting" })); await window.api.restartBot(id); };
-  const handleSaveEnv= async (id, envVars) => { await window.api.updateBot(id, { envVars }); setBots((p) => p.map((b) => b.id === id ? { ...b, envVars } : b)); setShowEnvModal(null); };
+  const handleSaveEnv= async (id, envVars) => {
+    try {
+      await window.api.updateBot(id, { envVars });
+      setBots((p) => p.map((b) => b.id === id ? { ...b, envVars } : b));
+    } catch (err) {
+      console.error('Ympäristömuuttujien tallennus epäonnistui:', err);
+    } finally {
+      setShowEnvModal(null);
+    }
+  };
   const handleStartAll = () => {
     bots.forEach((b) => {
       const s = statuses[b.id] || "offline";
@@ -332,6 +341,7 @@ export default function App() {
       {editBot && <AddBotModal initialBot={editBot} onAdd={handleAdd} onEdit={(data) => handleEdit(editBot.id, data)} onClose={() => setEditBot(null)} />}
       {showEnvModal && (
         <EnvModal
+          key={showEnvModal}
           bot={bots.find((b) => b.id === showEnvModal)}
           onSave={(env) => handleSaveEnv(showEnvModal, env)}
           onClose={() => setShowEnvModal(null)}

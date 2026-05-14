@@ -27,8 +27,9 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ bottom: 0, right: 0 });
-  const menuRef = useRef(null);
-  const btnRef  = useRef(null);
+  const menuRef   = useRef(null);
+  const btnRef    = useRef(null);
+  const portalRef = useRef(null);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
 
   const openMenu = (e) => {
@@ -44,13 +45,15 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
     setMenuOpen(true);
   };
 
-  // Close menu on outside click
+  // Close menu on outside click — portalRef ensures clicks inside the portal
+  // don't close the menu before the item's onClick fires.
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e) => {
       if (
         menuRef.current && !menuRef.current.contains(e.target) &&
-        btnRef.current  && !btnRef.current.contains(e.target)
+        btnRef.current  && !btnRef.current.contains(e.target) &&
+        (!portalRef.current || !portalRef.current.contains(e.target))
       ) setMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
@@ -129,7 +132,7 @@ export default function BotCard({ bot, status, startedAt, isSelected, onSelect, 
           </button>
 
           {menuOpen && createPortal(
-            <div style={{
+            <div ref={portalRef} style={{
               position: "fixed", bottom: menuPos.bottom, right: menuPos.right, zIndex: 9999,
               background: "#0f0f1c", border: "1px solid #1e1e35", borderRadius: 9,
               boxShadow: "0 8px 32px rgba(0,0,0,0.6)", minWidth: 148, overflow: "hidden",
