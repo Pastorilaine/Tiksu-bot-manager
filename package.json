@@ -1,6 +1,6 @@
 {
   "name": "tiksu-bot-manager",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Tiksu Bot Manager – IT-Veljekset hallintapaneeli",
   "author": "IT-Veljekset Group",
   "license": "MIT",
@@ -10,7 +10,7 @@
     "dev:vite": "vite",
     "dev:electron": "electron .",
     "build": "vite build",
-    "test": "node test/updater.test.js && node test/secrets.test.js",
+    "test": "node test/updater.test.js && node test/secrets.test.js && node test/restart-policy.test.js",
     "build:app": "npm run build && electron-builder",
     "release:win": "npm run build && electron-builder --win --publish always",
     "preview": "vite preview"

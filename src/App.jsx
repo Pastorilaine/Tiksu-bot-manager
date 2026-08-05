@@ -102,9 +102,28 @@ export default function App() {
   const handleAdd    = async (data) => { const b = await window.api.addBot(data); if (b?.error) { return b; } setBots((p) => [...p, b]); setStatuses((p) => ({ ...p, [b.id]: "offline" })); setShowAddModal(false); return b; };
   const handleEdit   = async (id, data) => { const b = await window.api.updateBot(id, data); if (!b) return null; setBots((p) => p.map((x) => x.id === id ? b : x)); setEditBot(null); return b; };
   const handleDelete = async (id)   => { await window.api.deleteBot(id); setBots((p) => p.filter((b) => b.id !== id)); if (selectedBotId === id) setSelectedBotId(null); setConfirmDelete(null); };
-  const handleStart  = async (id)   => { setStatuses((p) => ({ ...p, [id]: "starting" }));   await window.api.startBot(id); };
-  const handleStop   = async (id)   => { await window.api.stopBot(id); };
-  const handleRestart= async (id)   => { setStatuses((p) => ({ ...p, [id]: "restarting" })); await window.api.restartBot(id); };
+  // Main can refuse a command ({ ok: false }) without emitting a status event —
+  // show why and put the card back on the real status instead of leaving it
+  // stuck on "Käynnistyy".
+  const appendLog = useCallback((botId, message, type = "error") => {
+    setLogs((p) => ({
+      ...p,
+      [botId]: [...(p[botId] || []), { id: ++logIdRef.current, message, type, ts: Date.now() }],
+    }));
+  }, []);
+
+  const reportFailure = useCallback(async (id, res, what) => {
+    if (res?.ok !== false) return false;
+    appendLog(id, `✗ ${what} epäonnistui: ${res.error ?? "tuntematon virhe"}`);
+    setStatuses((p) => ({ ...p, [id]: "offline" }));
+    const actual = await window.api.getBotStatus(id);
+    setStatuses((p) => ({ ...p, [id]: actual }));
+    return true;
+  }, [appendLog]);
+
+  const handleStart  = async (id)   => { setStatuses((p) => ({ ...p, [id]: "starting" }));   await reportFailure(id, await window.api.startBot(id),   "Käynnistys"); };
+  const handleStop   = async (id)   => { await reportFailure(id, await window.api.stopBot(id), "Pysäytys"); };
+  const handleRestart= async (id)   => { setStatuses((p) => ({ ...p, [id]: "restarting" })); await reportFailure(id, await window.api.restartBot(id), "Uudelleenkäynnistys"); };
   const handleSaveEnv= async (id, envVars) => {
     try {
       await window.api.updateBot(id, { envVars });

@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const Store = require('electron-store');
 const updater = require('./updater');
 const { decryptBots, encryptBots } = require('./secrets');
+const { nextRestart, MAX_RESTARTS } = require('./restart-policy');
 
 const store = new Store();
 
@@ -24,8 +25,10 @@ const DEFAULT_SETTINGS = {
   maxLogLines:              2000,
 };
 
-// Map: botId -> { process, manualStop, isRestarting, moduleError }
+// Map: botId -> { process, manualStop, isRestarting, moduleError, startedAt }
 const botProcesses = new Map();
+// Map: botId -> consecutive auto-restarts, cleared by a manual start
+const restartCounts = new Map();
 let mainWindow = null;
 let tray = null;
 app.isQuitting = false;
@@ -359,10 +362,16 @@ async function autoInstallModule(botId, botDir, moduleName) {
 
 // ─── Bot process management ──────────────────────────────────────────────────
 
-function startBotProcess(botId) {
+/**
+ * @param {string} botId
+ * @param {boolean} [isAutoRestart] true when called by the crash-restart chain;
+ *   a manual start clears the restart budget.
+ */
+function startBotProcess(botId, isAutoRestart = false) {
   const bot = getBots().find((b) => b.id === botId);
   if (!bot) return { ok: false, error: 'Bottia ei löydy' };
   if (botProcesses.has(botId)) return { ok: false, error: 'Botti on jo käynnissä' };
+  if (!isAutoRestart) restartCounts.delete(botId);
 
   const isWindows = process.platform === 'win32';
   const botDir = path.dirname(bot.filePath);
@@ -397,7 +406,7 @@ function startBotProcess(botId) {
   const runtimeLabel = bot.type === 'python'
     ? (hasVenv ? 'Python (venv)' : 'Python')
     : 'Node.js';
-  botProcesses.set(botId, { process: proc, manualStop: false, isRestarting: false, moduleError: false });
+  botProcesses.set(botId, { process: proc, manualStop: false, isRestarting: false, moduleError: false, startedAt: Date.now() });
   sendToRenderer('bot:status', { botId, status: 'online' });
   const _s1 = getSettings();
   if (_s1.notificationsEnabled && _s1.notifyOnBotOnline) {
@@ -492,13 +501,17 @@ function startBotProcess(botId) {
     const wasManual     = info ? info.manualStop   : false;
     const isRestarting  = info ? info.isRestarting : false;
     const hadModuleError = info ? info.moduleError : false;
+    const ranMs = info ? Date.now() - info.startedAt : 0;
     botProcesses.delete(botId);
 
     // Refresh bot to get latest autoRestart value
     const freshBot = getBots().find((b) => b.id === botId);
-    const willRestart = !wasManual && !hadModuleError && freshBot && freshBot.autoRestart && code !== 0;
+    const crashed = !wasManual && !hadModuleError && freshBot && freshBot.autoRestart && code !== 0;
+    // Backoff + cap so a bot that dies on startup can't loop forever
+    const policy = crashed
+      ? nextRestart(restartCounts.get(botId) ?? 0, ranMs)
+      : { restart: false, count: 0, delayMs: 0, attempt: 0 };
 
-    // Human-readable exit message
     let exitMsg;
     if (isRestarting) {
       exitMsg = '↻ Käynnistetään uudelleen...';
@@ -506,10 +519,12 @@ function startBotProcess(botId) {
       exitMsg = '■ Botti pysäytetty';
     } else if (code === 0) {
       exitMsg = '■ Botti sulkeutui normaalisti';
-    } else if (willRestart) {
-      exitMsg = `■ Botti kaatui — käynnistetään uudelleen 3 s kuluttua…`;
+    } else if (policy.restart) {
+      exitMsg = `■ Botti kaatui — käynnistetään uudelleen ${Math.round(policy.delayMs / 1000)} s kuluttua (yritys ${policy.attempt}/${MAX_RESTARTS})`;
+    } else if (crashed) {
+      exitMsg = `■ Botti kaatui ${MAX_RESTARTS} kertaa peräkkäin — automaattinen uudelleenkäynnistys keskeytetty. Korjaa virhe ja käynnistä käsin.`;
     } else {
-      exitMsg = `■ Botti kaatui · tarkista lokit virheistä`;
+      exitMsg = '■ Botti kaatui · tarkista lokit virheistä';
     }
 
     sendToRenderer('bot:log', {
@@ -521,10 +536,12 @@ function startBotProcess(botId) {
 
     if (isRestarting) {
       // Status stays 'restarting' (set by App.jsx); startBotProcess runs via setTimeout in restart IPC
-    } else if (willRestart) {
+    } else if (policy.restart) {
+      restartCounts.set(botId, policy.count);
       sendToRenderer('bot:status', { botId, status: 'restarting' });
-      setTimeout(() => startBotProcess(botId), 3000);
+      setTimeout(() => startBotProcess(botId, true), policy.delayMs);
     } else {
+      restartCounts.delete(botId);
       sendToRenderer('bot:status', { botId, status: 'offline' });
     }
   });
@@ -755,6 +772,21 @@ ipcMain.handle('shell:open-external', (_, url) => {
 });
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
+
+// The app launches at login and hides in the tray, so clicking the desktop icon
+// would otherwise start a second manager: duplicate bot processes for the same
+// bot and two writers on the same config.json. Hand the click to the running
+// instance instead.
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
