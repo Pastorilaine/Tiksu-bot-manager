@@ -1,21 +1,21 @@
-﻿import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { Play, Square, RotateCw, Trash2, Clock, FileCode2, KeyRound, Terminal,
          AlertCircle, ChevronDown, Search, X, Download, Copy, Check, Clock3 } from "lucide-react";
 import { useUptime, formatUptime } from "../hooks/useUptime.js";
 
 const STATUS_CFG = {
-  online:     { color: "#3ba55d", label: "Online",     bg: "rgba(59,165,93,0.1)",  border: "rgba(59,165,93,0.3)"  },
-  offline:    { color: "#4e5058", label: "Offline",    bg: "rgba(78,80,88,0.1)",   border: "rgba(78,80,88,0.25)"  },
-  error:      { color: "#ed4245", label: "Hälytys",    bg: "rgba(237,66,69,0.1)",  border: "rgba(237,66,69,0.3)"  },
-  restarting: { color: "#faa81a", label: "Käynnistyy", bg: "rgba(250,168,26,0.1)", border: "rgba(250,168,26,0.3)" },
-  starting:   { color: "#5865F2", label: "Käynnistyy", bg: "rgba(88,101,242,0.1)", border: "rgba(88,101,242,0.3)" },
+  online:     { color: "rgb(var(--c-success))", label: "Online",     textCls: "text-success" },
+  offline:    { color: "rgb(var(--c-subtle))",  label: "Offline",    textCls: "text-subtle"  },
+  error:      { color: "rgb(var(--c-danger))",  label: "Hälytys",    textCls: "text-danger"  },
+  restarting: { color: "rgb(var(--c-warn))",    label: "Käynnistyy", textCls: "text-warn"    },
+  starting:   { color: "rgb(var(--c-accent))",  label: "Käynnistyy", textCls: "text-accent"  },
 };
 
 const LOG_STYLE = {
-  stdout: { color: "#c9d1d9" },
-  stderr: { color: "#f47067" },
-  error:  { color: "#ff6b6b", fontWeight: 600 },
-  system: { color: "#4a6fa5" },
+  stdout: { color: "rgb(var(--c-text))" },
+  stderr: { color: "rgb(var(--c-danger))" },
+  error:  { color: "rgb(var(--c-danger))", fontWeight: 600 },
+  system: { color: "rgb(var(--c-accent))" },
 };
 
 const FILTERS = [
@@ -25,7 +25,7 @@ const FILTERS = [
 
 function Ts({ ts }) {
   return (
-    <span style={{ color: "#3d3d5c", minWidth: 58, flexShrink: 0, fontVariantNumeric: "tabular-nums", userSelect: "none" }}>
+    <span className="text-subtle text-meta font-mono min-w-[58px] shrink-0 tabular-nums select-none">
       {new Date(ts).toLocaleTimeString("fi-FI", { hour12: false })}
     </span>
   );
@@ -36,12 +36,12 @@ function highlightText(text, query) {
   const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
   return parts.map((part, i) =>
     part.toLowerCase() === query.toLowerCase()
-      ? <mark key={i} style={{ background: "#faa81a44", color: "#faa81a", borderRadius: 2 }}>{part}</mark>
+      ? <mark key={i} className="bg-warn/20 text-warn rounded-sm px-0.5">{part}</mark>
       : part
   );
 }
 
-export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop, onRestart, onClearLogs }) {
+export default function LogPanel({ bot, status, startedAt, logs, shortcutsEnabled = true, onStart, onStop, onRestart, onClearLogs }) {
   const scrollRef         = useRef(null);
   const searchInputRef    = useRef(null);
   const isAtBottomRef     = useRef(true);
@@ -51,7 +51,7 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
   const [searchOpen, setSearchOpen]         = useState(false);
   const [searchQuery, setSearchQuery]       = useState("");
   const [showTimestamps, setShowTimestamps] = useState(true);
-  const [copiedIdx, setCopiedIdx]           = useState(null);
+  const [copiedId, setCopiedId]             = useState(null);
 
   const elapsed   = useUptime(startedAt);
   const uptime    = formatUptime(elapsed);
@@ -59,7 +59,6 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
   const isRunning = status === "online";
   const isBusy    = status === "starting" || status === "restarting";
 
-  // Filtered log lines
   const filtered = filter === "errors"
     ? logs.filter((e) => e.type === "stderr" || e.type === "error")
     : logs;
@@ -68,7 +67,6 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
     : filtered;
   const errorCount = logs.filter((e) => e.type === "stderr" || e.type === "error").length;
 
-  // Track whether user is at the bottom
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -77,7 +75,6 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
     else           { isAtBottomRef.current = false; }
   }, []);
 
-  // Auto-scroll; track actual number of new lines
   useEffect(() => {
     const newLines = logs.length - prevLogsLengthRef.current;
     prevLogsLengthRef.current = logs.length;
@@ -90,15 +87,14 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
     }
   }, [logs]);
 
-  // Reset scroll and counter when filter changes
   useEffect(() => {
     setNewCount(0);
     isAtBottomRef.current = true;
     setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }), 0);
   }, [filter]);
 
-  // Keyboard shortcuts
   useEffect(() => {
+    if (!shortcutsEnabled) return;   // a modal is open — it owns the keyboard
     const handler = (e) => {
       if (e.ctrlKey && e.key === "f") { e.preventDefault(); setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 50); }
       if (e.key === "Escape") { setSearchOpen(false); setSearchQuery(""); }
@@ -107,7 +103,7 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isRunning, isBusy, onStart, onStop, onClearLogs]);
+  }, [shortcutsEnabled, isRunning, isBusy, onStart, onStop, onClearLogs]);
 
   const scrollToBottom = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -115,10 +111,10 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
     setNewCount(0);
   };
 
-  const copyLine = (text, idx) => {
+  const copyLine = (text, id) => {
     navigator.clipboard.writeText(text).then(() => {
-      setCopiedIdx(idx);
-      setTimeout(() => setCopiedIdx(null), 1500);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
     });
   };
 
@@ -130,91 +126,80 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: "#0b0b14" }}>
+    <div className="page">
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div style={{ background: "#0d0d1a", borderBottom: "1px solid #17172a", padding: "16px 24px 12px" }}>
+      <div className="page-head flex-col items-stretch gap-3">
 
         {/* Title row */}
-        <div className="flex items-center gap-4" style={{ marginBottom: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 3 }}>
-              <h2 style={{ fontSize: 17, fontWeight: 700, color: "#f2f3f5", margin: 0 }}>{bot.name}</h2>
-              <span style={{
-                fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
-                background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
-              }}>{cfg.label}</span>
-              {isRunning && uptime && (
-                <span style={{ fontSize: 11, color: "#3ba55d", display: "flex", alignItems: "center", gap: 4 }}>
-                  <Clock size={11} /> {uptime}
-                </span>
-              )}
-            </div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-title font-semibold text-text">{bot.name}</h2>
+            <span className={`chip text-meta font-medium ${cfg.textCls}`}>
+              {cfg.label}
+            </span>
+            {isRunning && uptime && (
+              <span className="text-label text-success flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" /> {uptime}
+              </span>
+            )}
           </div>
 
           {/* Controls */}
           <div className="flex items-center gap-2 shrink-0">
             {!isRunning && !isBusy ? (
-              <HeaderBtn onClick={onStart} color="#3ba55d" icon={<Play size={13} />} title="Ctrl+Enter">Käynnistä</HeaderBtn>
+              <button onClick={onStart} className="btn text-success border-success/30 bg-success/10 hover:bg-success/20" title="Ctrl+Enter">
+                <Play className="w-3.5 h-3.5 fill-current" /> Käynnistä
+              </button>
             ) : (
               <>
-                <HeaderBtn onClick={onStop} color="#ed4245" icon={<Square size={13} />} disabled={isBusy} title="Ctrl+Enter">Pysäytä</HeaderBtn>
-                <HeaderBtn onClick={onRestart} color="#faa81a" icon={<RotateCw size={13} />} disabled={isBusy}>Uudelleen</HeaderBtn>
+                <button onClick={onStop} disabled={isBusy} className="btn btn-danger" title="Ctrl+Enter">
+                  <Square className="w-3.5 h-3.5 fill-current" /> Pysäytä
+                </button>
+                <button onClick={onRestart} disabled={isBusy} className="btn text-warn border-warn/30 bg-warn/10 hover:bg-warn/20">
+                  <RotateCw className="w-3.5 h-3.5" /> Uudelleen
+                </button>
               </>
             )}
-            <IconBtn onClick={() => setShowTimestamps((v) => !v)} active={showTimestamps} title="Näytä/piilota aikaleimat">
-              <Clock3 size={13} />
-            </IconBtn>
-            <IconBtn onClick={() => { setSearchOpen((v) => !v); setTimeout(() => searchInputRef.current?.focus(), 50); }} active={searchOpen} title="Hae (Ctrl+F)">
-              <Search size={13} />
-            </IconBtn>
-            <IconBtn onClick={exportLogs} title="Vie lokit tiedostoon">
-              <Download size={13} />
-            </IconBtn>
-            <button onClick={onClearLogs} style={ghostBtn()} title="Tyhjennä lokit (Ctrl+L)"
-              onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a3a"}
-              onMouseLeave={e => e.currentTarget.style.borderColor = "#17172a"}>
-              <Trash2 size={13} style={{ color: "#4e5058" }} />
-              <span style={{ fontSize: 12, color: "#4e5058" }}>Tyhjennä</span>
+            <button onClick={() => setShowTimestamps((v) => !v)} className={`btn btn-icon ${showTimestamps ? "btn-ghost text-accent" : "btn-ghost"}`} title="Näytä/piilota aikaleimat">
+              <Clock3 className="w-4 h-4" />
+            </button>
+            <button onClick={() => { setSearchOpen((v) => !v); setTimeout(() => searchInputRef.current?.focus(), 50); }} className={`btn btn-icon ${searchOpen ? "btn-ghost text-accent" : "btn-ghost"}`} title="Hae (Ctrl+F)">
+              <Search className="w-4 h-4" />
+            </button>
+            <button onClick={exportLogs} className="btn btn-icon btn-ghost" title="Vie lokit tiedostoon">
+              <Download className="w-4 h-4" />
+            </button>
+            <button onClick={onClearLogs} className="btn btn-ghost" title="Tyhjennä lokit (Ctrl+L)">
+              <Trash2 className="w-3.5 h-3.5 text-muted" />
+              <span>Tyhjennä</span>
             </button>
           </div>
         </div>
 
         {/* Stats + filter row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div className="flex items-center justify-between gap-4 flex-wrap pt-1 border-t border-line/50">
           {/* Stats */}
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-            <Stat icon={<FileCode2 size={12} />} label={bot.type === "python" ? "Python" : "JavaScript"} />
-            <Stat icon={<Terminal size={12} />}  label={`${logs.length} riviä`} />
-            <Stat icon={<KeyRound size={12} />}  label={`${Object.keys(bot.envVars || {}).length} env vars`} />
-            {isRunning && uptime && <Stat icon={<Clock size={12} />} label={uptime} highlight />}
-            {status === "error" && <Stat icon={<AlertCircle size={12} />} label="Virhe" danger />}
+          <div className="flex items-center gap-4 text-label text-muted">
+            <span className="flex items-center gap-1.5"><FileCode2 className="w-3.5 h-3.5" /> {bot.type === "python" ? "Python" : "JavaScript"}</span>
+            <span className="flex items-center gap-1.5"><Terminal className="w-3.5 h-3.5" /> {logs.length} riviä</span>
+            <span className="flex items-center gap-1.5"><KeyRound className="w-3.5 h-3.5" /> {Object.keys(bot.envVars || {}).length} env vars</span>
           </div>
 
           {/* Filter tabs */}
-          <div style={{ display: "flex", gap: 4 }}>
+          <div className="flex gap-1.5">
             {FILTERS.map(({ id, label }) => {
               const isActive = filter === id;
               const hasErrors = id === "errors" && errorCount > 0;
               return (
-                <button key={id} onClick={() => setFilter(id)}
-                  style={{
-                    padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: isActive ? 700 : 500,
-                    background: isActive ? "rgba(88,101,242,0.18)" : "transparent",
-                    color: isActive ? "#949cf7" : "#3a3a5a",
-                    border: `1px solid ${isActive ? "rgba(88,101,242,0.35)" : "transparent"}`,
-                    cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all 0.1s",
-                  }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = "#6c6e8a"; }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = "#3a3a5a"; }}
+                <button
+                  key={id}
+                  onClick={() => setFilter(id)}
+                  className={`chip ${isActive ? "chip-active" : ""}`}
                 >
                   {label}
                   {hasErrors && (
-                    <span style={{
-                      background: "#ed4245", color: "#fff", fontSize: 9, fontWeight: 700,
-                      borderRadius: 4, padding: "1px 5px", lineHeight: "14px",
-                      animation: "errorPulse 2s ease-in-out infinite",
-                    }}>
+                    <span className="bg-danger text-accent-fg text-meta font-bold rounded px-1 animate-pulse">
                       {errorCount}
                     </span>
                   )}
@@ -226,43 +211,39 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
 
         {/* Search bar */}
         {searchOpen && (
-          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, background: "#070710", border: "1px solid #5865F2", borderRadius: 8, padding: "6px 12px" }}>
-              <Search size={13} style={{ color: "#5865F2", flexShrink: 0 }} />
+          <div className="flex items-center gap-2 pt-2">
+            <div className="flex-1 relative flex items-center">
+              <Search className="w-3.5 h-3.5 text-accent absolute left-2.5" />
               <input
                 ref={searchInputRef}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Hae lokeista…"
-                style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "#e3e5e8", fontSize: 12 }}
+                className="field pl-8"
               />
               {searchQuery && (
-                <span style={{ fontSize: 10, color: "#4e5058", whiteSpace: "nowrap" }}>
+                <span className="text-meta text-subtle absolute right-3 whitespace-nowrap">
                   {visible.length} / {filtered.length} riviä
                 </span>
               )}
             </div>
-            <button onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
-              style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #1e1e2a", background: "transparent", color: "#4e5058", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#e3e5e8"}
-              onMouseLeave={e => e.currentTarget.style.color = "#4e5058"}>
-              <X size={13} />
+            <button onClick={() => { setSearchOpen(false); setSearchQuery(""); }} className="btn btn-ghost btn-icon">
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
       </div>
 
       {/* ── Log body ────────────────────────────────────────────────── */}
-      <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
-        <div ref={scrollRef} onScroll={handleScroll}
-          style={{ height: "100%", overflowY: "auto", padding: "10px 0", background: "#070710", fontFamily: "'Consolas','Cascadia Code','Fira Mono',monospace", fontSize: 12, lineHeight: "20px" }}>
+      <div className="relative flex-1 overflow-hidden bg-bg">
+        <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto py-2 font-mono text-ui leading-5">
           {visible.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full select-none" style={{ gap: 10, color: "#20202a" }}>
-              <Terminal size={32} />
-              <p style={{ fontSize: 13 }}>
+            <div className="flex flex-col items-center justify-center h-full select-none gap-2 text-subtle">
+              <Terminal className="w-8 h-8" />
+              <p className="text-ui font-medium">
                 {searchQuery ? `Ei tuloksia haulle "${searchQuery}"` : filter === "errors" ? "Ei virheitä — hienoa!" : "Odottaa lokeja…"}
               </p>
-              <p style={{ fontSize: 11 }}>
+              <p className="text-label">
                 {searchQuery ? "Kokeile eri hakusanaa." : filter === "errors" ? "Vaihda 'Kaikki'-näkymään nähdäksesi kaikki lokit." : "Käynnistä botti nähdäksesi tulosteet."}
               </p>
             </div>
@@ -271,35 +252,28 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
               {visible.map((entry, i) => {
                 const isSystem = entry.type === "system";
                 const style = LOG_STYLE[entry.type] ?? LOG_STYLE.stdout;
-                const isCopied = copiedIdx === i;
+                const rowId = entry.id ?? i;
+                const isCopied = copiedId === rowId;
                 return (
-                  <div key={i} className="log-row"
-                    onClick={() => copyLine(entry.message, i)}
-                    style={{
-                      display: "flex", alignItems: "flex-start", padding: "1px 20px",
-                      borderLeft: isSystem ? "2px solid #2a3a5a" : "2px solid transparent",
-                      paddingLeft: isSystem ? 18 : 20,
-                      background: isSystem ? "rgba(74,111,165,0.04)" : "transparent",
-                      cursor: "pointer", transition: "background 0.08s",
-                    }}
-                    onMouseEnter={e => { if (!isSystem) e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isSystem ? "rgba(74,111,165,0.04)" : "transparent"; }}
+                  <div key={rowId} className="log-row flex items-start px-5 py-0.5 border-l-2 border-transparent hover:bg-surface-2 cursor-pointer transition-colors"
+                    onClick={() => copyLine(entry.message, rowId)}
+                    style={{ borderLeftColor: isSystem ? "rgb(var(--c-accent))" : "transparent" }}
                   >
                     {showTimestamps && <Ts ts={entry.ts} />}
-                    <span style={{ flex: 1, ...style, whiteSpace: "pre-wrap", wordBreak: "break-all", paddingLeft: showTimestamps ? 10 : 0 }}>
+                    <span className={`flex-1 whitespace-pre-wrap break-all ${showTimestamps ? "pl-2.5" : ""}`} style={style}>
                       {searchQuery ? highlightText(entry.message, searchQuery) : entry.message}
                     </span>
-                    <span style={{ marginLeft: 8, flexShrink: 0, color: isCopied ? "#3ba55d" : "#2a2a4a", fontSize: 10, display: "flex", alignItems: "center", minWidth: 13 }}>
-                      {isCopied ? <Check size={11} /> : <Copy size={11} className="copy-icon" />}
+                    <span className="ml-2 shrink-0 text-subtle text-meta flex items-center min-w-[13px]">
+                      {isCopied ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3 copy-icon" />}
                     </span>
                   </div>
                 );
               })}
               {/* End-of-log indicator */}
-              <div style={{ padding: "12px 20px 4px", display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ flex: 1, height: 1, background: "#111120" }} />
-                <span style={{ fontSize: 10, color: "#1e1e2a", whiteSpace: "nowrap" }}>lokin loppu · {logs.length} riviä</span>
-                <div style={{ flex: 1, height: 1, background: "#111120" }} />
+              <div className="px-5 py-3 flex items-center gap-2.5">
+                <div className="flex-1 h-[1px] bg-line" />
+                <span className="text-meta text-subtle whitespace-nowrap">lokin loppu · {logs.length} riviä</span>
+                <div className="flex-1 h-[1px] bg-line" />
               </div>
             </>
           )}
@@ -307,17 +281,8 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
 
         {/* Scroll-to-bottom pill */}
         {newCount > 0 && !isAtBottomRef.current && (
-          <button onClick={scrollToBottom}
-            style={{
-              position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "7px 16px", borderRadius: 20,
-              background: "#5865F2", color: "#fff",
-              border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer",
-              boxShadow: "0 4px 16px rgba(88,101,242,0.4)", zIndex: 10,
-              animation: "fadeIn 0.15s ease",
-            }}>
-            <ChevronDown size={14} /> {newCount} uutta riviä
+          <button onClick={scrollToBottom} className="btn btn-primary rounded-full absolute bottom-4 left-1/2 -translate-x-1/2 shadow-float z-10 animate-fadeIn">
+            <ChevronDown className="w-4 h-4" /> {newCount} uutta riviä
           </button>
         )}
       </div>
@@ -325,52 +290,3 @@ export default function LogPanel({ bot, status, startedAt, logs, onStart, onStop
   );
 }
 
-function HeaderBtn({ onClick, color, icon, disabled, children, title }) {
-  return (
-    <button onClick={onClick} disabled={disabled} title={title}
-      style={{
-        display: "flex", alignItems: "center", gap: 7,
-        padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-        background: disabled ? "transparent" : `${color}18`,
-        color: disabled ? "#30303d" : color,
-        border: `1px solid ${disabled ? "#1a1a2a" : `${color}44`}`,
-        cursor: disabled ? "not-allowed" : "pointer", transition: "all 0.1s",
-      }}
-      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = `${color}28`; }}
-      onMouseLeave={e => { if (!disabled) e.currentTarget.style.background = `${color}18`; }}>
-      {icon}{children}
-    </button>
-  );
-}
-
-function IconBtn({ onClick, children, title, active }) {
-  return (
-    <button onClick={onClick} title={title}
-      style={{
-        width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
-        borderRadius: 7, border: `1px solid ${active ? "rgba(88,101,242,0.45)" : "#17172a"}`,
-        background: active ? "rgba(88,101,242,0.12)" : "transparent",
-        color: active ? "#949cf7" : "#4e5058", cursor: "pointer", transition: "all 0.1s",
-      }}
-      onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "#949cf7"; e.currentTarget.style.borderColor = "rgba(88,101,242,0.35)"; } }}
-      onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "#4e5058"; e.currentTarget.style.borderColor = "#17172a"; } }}>
-      {children}
-    </button>
-  );
-}
-
-function ghostBtn() {
-  return {
-    display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8,
-    background: "transparent", border: "1px solid #17172a", cursor: "pointer", transition: "border-color 0.1s",
-  };
-}
-
-function Stat({ icon, label, highlight, danger }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11,
-      color: danger ? "#ed4245" : highlight ? "#3ba55d" : "#5a5a78" }}>
-      {icon}<span>{label}</span>
-    </div>
-  );
-}

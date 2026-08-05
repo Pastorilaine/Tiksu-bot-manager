@@ -1,0 +1,14 @@
+# Used by electron/updater.js when DEV_UPDATER_ENABLED=true.
+# Points electron-updater at the real GitHub repo so the check/download/install
+# chain can be exercised from a dev run before a release goes public.
+#
+# Usage (PowerShell):
+#   $env:DEV_UPDATER_ENABLED = "true"
+#   npm run dev:electron
+#
+# Set GH_TOKEN too if the release you are testing is a draft or pre-release.
+
+provider: github
+owner: Pastorilaine
+repo: Tiksu-bot-manager
+updaterCacheDirName: tiksu-bot-manager-updater

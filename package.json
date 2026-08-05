@@ -1,18 +1,22 @@
 {
   "name": "tiksu-bot-manager",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "Tiksu Bot Manager – IT-Veljekset hallintapaneeli",
+  "author": "IT-Veljekset Group",
   "license": "MIT",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "npx kill-port 5173 --silent & concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dev": "npx kill-port 5173 --silent & concurrently -k -n VITE,ELECTRON -c cyan,magenta \"vite --host 127.0.0.1\" \"electron .\"",
     "dev:vite": "vite",
     "dev:electron": "electron .",
     "build": "vite build",
+    "test": "node test/updater.test.js && node test/secrets.test.js",
     "build:app": "npm run build && electron-builder",
+    "release:win": "npm run build && electron-builder --win --publish always",
     "preview": "vite preview"
   },
   "dependencies": {
+    "electron-log": "^5.4.4",
     "electron-store": "^7.0.3",
     "electron-updater": "^6.8.3",
     "lucide-react": "^1.14.0"
@@ -35,6 +39,7 @@
   "build": {
     "appId": "com.itveljekset.tiksu-bot-manager",
     "productName": "Tiksu Bot Manager",
+    "artifactName": "Tiksu-Bot-Manager-Setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },

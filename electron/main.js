@@ -1,19 +1,18 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, Notification, shell, nativeTheme, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const Store = require('electron-store');
-const { autoUpdater } = require('electron-updater');
-
-// ─── Auto-updater config ─────────────────────────────────────────────────────
-autoUpdater.autoInstallOnAppQuit = false;  // we handle this ourselves (silent mode)
+const updater = require('./updater');
+const { decryptBots, encryptBots } = require('./secrets');
 
 const store = new Store();
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
+  theme:                    'system', // 'system' | 'dark' | 'light'
   launchOnStartup:          false,
   minimizeToTrayOnClose:    true,
   startMinimized:           false,
@@ -24,6 +23,22 @@ const DEFAULT_SETTINGS = {
   notifyOnBotCrash:         true,
   maxLogLines:              2000,
 };
+
+// Map: botId -> { process, manualStop, isRestarting, moduleError }
+const botProcesses = new Map();
+let mainWindow = null;
+let tray = null;
+app.isQuitting = false;
+
+const THEME_BACKGROUND = { light: '#F6F7F9', dark: '#0D0F12' };
+
+function applyTheme(theme = 'system') {
+  nativeTheme.themeSource = ['light', 'dark'].includes(theme) ? theme : 'system';
+  const resolved = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setBackgroundColor(THEME_BACKGROUND[resolved]);
+  }
+}
 
 function getSettings() {
   return { ...DEFAULT_SETTINGS, ...store.get('settings', {}) };
@@ -37,6 +52,9 @@ function saveSetting(key, value) {
 }
 
 function applySettingLive(key, value) {
+  if (key === 'theme') {
+    applyTheme(value);
+  }
   if (key === 'launchOnStartup' || key === 'startMinimized') {
     const s = getSettings();
     app.setLoginItemSettings({
@@ -45,22 +63,18 @@ function applySettingLive(key, value) {
     });
   }
   if (key === 'autoDownloadUpdates') {
-    autoUpdater.autoDownload = value;
+    updater.setAutoDownload(value);
+  }
+  if (key === 'updateCheckIntervalMin') {
+    updater.setCheckInterval(value);
   }
 }
 
 // Apply stored settings immediately (before windows are created)
 {
-  const s = getSettings();
-  autoUpdater.autoDownload = s.autoDownloadUpdates;
+  applyTheme(getSettings().theme);
 }
 
-// Map: botId -> { process, manualStop, isRestarting, moduleError }
-const botProcesses = new Map();
-let mainWindow = null;
-let tray = null;
-let updateReady = false;  // set to true when an update has been downloaded
-app.isQuitting = false;
 
 // Suppress GPU shader cache errors (Windows permission issue, harmless)
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
@@ -74,29 +88,80 @@ function saveBounds() {
   }
 }
 
+function buildTrayMenu(updateVersion = null) {
+  if (!tray || tray.isDestroyed()) return;
+  const items = [
+    { label: 'Avaa hallintapaneeli', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { type: 'separator' },
+  ];
+  if (updateVersion) {
+    items.push(
+      { label: `⬆ Asenna päivitys v${updateVersion} nyt`, click: () => installDownloadedUpdate() },
+      { type: 'separator' },
+    );
+  }
+  items.push({ label: 'Lopeta (pysäyttää botit)', click: () => { app.isQuitting = true; app.quit(); } });
+  tray.setContextMenu(Menu.buildFromTemplate(items));
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, '../assets/tiksu_bots_trans.png');
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip('Tiksu Bot Manager');
-  const menu = Menu.buildFromTemplate([
-    { label: 'Avaa hallintapaneeli', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
-    { type: 'separator' },
-    { label: 'Lopeta (pysäyttää botit)', click: () => { app.isQuitting = true; app.quit(); } },
-  ]);
-  tray.setContextMenu(menu);
+  buildTrayMenu();
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
 }
 
+function installDownloadedUpdate() {
+  updater.installUpdate(() => {
+    app.isQuitting = true;
+    for (const [, info] of botProcesses) {
+      try { info.process.kill('SIGTERM'); } catch (_) {}
+      killTree(info.process);
+    }
+    if (tray && !tray.isDestroyed()) { tray.destroy(); tray = null; }
+  });
+}
+
 function createWindow() {
+  const { screen } = require('electron');
   const savedBounds    = store.get('windowBounds', { width: 1280, height: 800 });
   const savedMaximized = store.get('windowMaximized', false);
+  const settings       = getSettings();
+  const resolvedTheme  = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+
+  // ── Validate saved bounds are on a visible display ────────────────────────
+  let bounds = { ...savedBounds };
+  const displays = screen.getAllDisplays();
+  const isOnScreen = displays.some((d) => {
+    const { x, y, width, height } = d.workArea;
+    return (
+      (bounds.x ?? 0) >= x - 100 &&
+      (bounds.y ?? 0) >= y - 100 &&
+      (bounds.x ?? 0) < x + width - 50 &&
+      (bounds.y ?? 0) < y + height - 50
+    );
+  });
+  if (!isOnScreen || bounds.x === undefined || bounds.y === undefined) {
+    // Reset to centered on primary display
+    const primary = screen.getPrimaryDisplay().workArea;
+    bounds = {
+      width:  Math.min(bounds.width  || 1280, primary.width),
+      height: Math.min(bounds.height || 800,  primary.height),
+      x: Math.round(primary.x + (primary.width  - (bounds.width  || 1280)) / 2),
+      y: Math.round(primary.y + (primary.height - (bounds.height || 800))  / 2),
+    };
+    console.log('[main] Saved bounds off-screen, centering window');
+  }
+
+  console.log('[main] Creating window with bounds:', JSON.stringify(bounds));
 
   mainWindow = new BrowserWindow({
-    ...savedBounds,
+    ...bounds,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: '#0f0f1a',
+    backgroundColor: THEME_BACKGROUND[resolvedTheme],
     frame: false,
     icon: path.join(__dirname, '../assets/tiksu_bots_trans.png'),
     webPreferences: {
@@ -106,17 +171,15 @@ function createWindow() {
       sandbox: false,
     },
     title: 'Tiksu Bot Manager',
-    show: false,
+    show: true,   // show immediately — no flicker risk worth blocking the window
   });
 
-  mainWindow.once('ready-to-show', () => {
-    if (savedMaximized) mainWindow.maximize();
-    if (getSettings().startMinimized) {
-      mainWindow.minimize();
-    } else {
-      mainWindow.show();
-    }
-  });
+  console.log('[main] BrowserWindow created, show=true');
+
+  if (savedMaximized) {
+    mainWindow.maximize();
+  }
+
   mainWindow.on('maximize',   () => { store.set('windowMaximized', true);  sendToRenderer('win:maximize-change', true); });
   mainWindow.on('unmaximize', () => { store.set('windowMaximized', false); sendToRenderer('win:maximize-change', false); });
   mainWindow.on('resize', saveBounds);
@@ -130,20 +193,39 @@ function createWindow() {
     }
   });
 
-  // Block any navigation away from the app (prevents renderer-initiated redirects)
+  // Block any navigation away from the app (prevents renderer-initiated redirects).
+  // The dev-server origin is only allowed while actually running from it.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const devUrl = 'http://localhost:5173';
-    if (!url.startsWith(devUrl) && !url.startsWith('file://')) {
-      event.preventDefault();
-    }
+    const allowed = url.startsWith('file://') ||
+      (!app.isPackaged && url.startsWith('http://127.0.0.1:5173'));
+    if (!allowed) event.preventDefault();
   });
 
   // Block new window / popup creation from renderer
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
-  // Dev: load from Vite dev server. Production: load built files.
+  // Dev: load from Vite dev server with retry. Production: load built files.
   if (!app.isPackaged) {
-    mainWindow.loadURL('http://localhost:5173');
+    let retryCount = 0;
+    const MAX_RETRIES = 30;  // 15 seconds max wait
+    const loadDevServer = () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.loadURL('http://127.0.0.1:5173').then(() => {
+        console.log('[main] Vite dev server loaded successfully');
+      }).catch(() => {
+        retryCount++;
+        if (retryCount <= MAX_RETRIES) {
+          console.log(`[main] Vite not ready, retry ${retryCount}/${MAX_RETRIES}...`);
+          setTimeout(loadDevServer, 500);
+        } else {
+          console.error('[main] Could not connect to Vite dev server after max retries');
+        }
+      });
+    };
+    loadDevServer();
+
+    // Open DevTools in dev mode for easier debugging
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -157,12 +239,14 @@ function sendToRenderer(channel, data) {
   }
 }
 
+// Env vars (Discord tokens) live encrypted on disk — see electron/secrets.js.
+// Legacy plaintext entries are migrated the next time the list is written.
 function getBots() {
-  return store.get('bots', []);
+  return decryptBots(safeStorage, store.get('bots', []));
 }
 
 function saveBots(bots) {
-  store.set('bots', bots);
+  store.set('bots', encryptBots(safeStorage, bots));
 }
 
 // ─── Venv detection ──────────────────────────────────────────────────────────
@@ -455,12 +539,23 @@ function stopBotProcess(botId) {
   info.manualStop = true;
   info.process.kill('SIGTERM');
 
-  // Force kill after 5 s if process hasn't exited
-  setTimeout(() => {
-    try { info.process.kill('SIGKILL'); } catch (_) {}
-  }, 5000);
+  // Force kill after 5 s if the process hasn't exited. On Windows a bot that
+  // spawned children (python -> subprocess) leaves them running when only the
+  // direct child is killed, so take the whole tree with taskkill /T.
+  setTimeout(() => killTree(info.process), 5000);
 
   return { ok: true };
+}
+
+function killTree(proc) {
+  if (!proc || proc.exitCode !== null || proc.signalCode !== null) return;
+  if (process.platform === 'win32') {
+    try { spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F']); } catch (_) {}
+  } else {
+    // ponytail: kills the bot only. Grandchildren need detached:true + a process
+    // group; add that if a bot ever spawns workers on Linux/macOS.
+    try { proc.kill('SIGKILL'); } catch (_) {}
+  }
 }
 
 // ─── IPC handlers ────────────────────────────────────────────────────────────
@@ -581,13 +676,15 @@ ipcMain.handle('dialog:pick-file', async () => {
   return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle('file:read', (_, filePath) => {
+// Reads the .env sitting next to a bot script. Main derives the path itself —
+// the renderer cannot name an arbitrary file to read.
+ipcMain.handle('env:read-for-bot', (_, botFilePath) => {
   try {
-    if (typeof filePath !== 'string') return null;
-    const normalized = path.normalize(filePath);
-    const stat = fs.statSync(normalized);
+    if (typeof botFilePath !== 'string') return null;
+    const envPath = path.join(path.dirname(path.normalize(botFilePath)), '.env');
+    const stat = fs.statSync(envPath);
     if (!stat.isFile() || stat.size > 65536) return null;
-    return fs.readFileSync(normalized, 'utf8');
+    return fs.readFileSync(envPath, 'utf8');
   } catch { return null; }
 });
 
@@ -628,25 +725,10 @@ ipcMain.handle('logs:export', async (_, { botName, content }) => {
 
 // ─── Update IPC handlers ─────────────────────────────────────────────────────
 
-ipcMain.handle('update:check', async () => {
-  if (!app.isPackaged) return { status: 'dev' };  // skip in dev mode
-  try {
-    const result = await autoUpdater.checkForUpdates();
-    return { status: 'checking', version: result?.updateInfo?.version ?? null };
-  } catch (e) {
-    return { status: 'error', message: e.message };
-  }
-});
+ipcMain.handle('update:check',    () => updater.checkForUpdates());
+ipcMain.handle('update:download', () => updater.downloadUpdate());
 
-ipcMain.handle('update:download', () => {
-  autoUpdater.downloadUpdate();
-  return true;
-});
-
-ipcMain.handle('update:install', () => {
-  // isSilent=true: no installer UI, isForceRunAfter=true: relaunch app after install
-  autoUpdater.quitAndInstall(true, true);
-});
+ipcMain.handle('update:install', () => installDownloadedUpdate());
 
 ipcMain.handle('update:get-version', () => app.getVersion());
 
@@ -664,50 +746,23 @@ ipcMain.handle('win:maximize',     () => { if (mainWindow?.isMaximized()) mainWi
 ipcMain.handle('win:close',        () => mainWindow?.close());
 ipcMain.handle('win:is-maximized', () => mainWindow?.isMaximized() ?? false);
 
-autoUpdater.on('update-available', (info) => {
-  // Download starts automatically — just notify renderer so it can show progress
-  sendToRenderer('update:available', { version: info.version });
-});
-
-autoUpdater.on('update-not-available', () => {
-  sendToRenderer('update:not-available', {});
-});
-
-autoUpdater.on('download-progress', ({ percent }) => {
-  sendToRenderer('update:progress', { percent: Math.round(percent) });
-});
-
-autoUpdater.on('update-downloaded', (info) => {
-  updateReady = true;
-  sendToRenderer('update:downloaded', { version: info.version });
-  // Show tray notification so user knows even if window is hidden
-  try {
-    new Notification({
-      title: 'Tiksu Bot Manager — Päivitys valmis',
-      body: `Versio ${info.version} on ladattu. Asennuu automaattisesti kun suljet sovelluksen.`,
-    }).show();
-  } catch (_) {}
-  // Add install option to tray menu
-  if (tray) {
-    const menu = Menu.buildFromTemplate([
-      { label: 'Avaa hallintapaneeli', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
-      { type: 'separator' },
-      { label: `\u2b06 Asenna p\u00e4ivitys v${info.version} nyt`, click: () => { autoUpdater.quitAndInstall(true, true); } },
-      { type: 'separator' },
-      { label: 'Lopeta (pysäyttää botit)', click: () => { app.isQuitting = true; app.quit(); } },
-    ]);
-    tray.setContextMenu(menu);
+// ─── Shell / External ─────────────────────────────────────────────────────────
+ipcMain.handle('shell:open-external', (_, url) => {
+  if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+    return shell.openExternal(url);
   }
-});
-
-autoUpdater.on('error', (err) => {
-  sendToRenderer('update:error', { message: err.message });
+  return Promise.resolve(false);
 });
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+
+  // One-time migration: rewrite any legacy plaintext env vars encrypted.
+  // Without this they would sit in config.json until the user edits a bot.
+  try { saveBots(getBots()); } catch (err) { console.error('[main] Env migration failed:', err.message); }
+
   createWindow();
   createTray();
 
@@ -728,12 +783,20 @@ app.whenReady().then(() => {
     }, 2500);
   }
 
-  // Check for updates 5 s after start, then on the configured interval (only in packaged app)
-  if (app.isPackaged) {
-    const intervalMs = (getSettings().updateCheckIntervalMin || 60) * 60 * 1000;
-    setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
-    setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), intervalMs);
-  }
+  // Auto-updater (no-op in dev unless DEV_UPDATER_ENABLED=true)
+  updater.initAutoUpdater(mainWindow, {
+    autoDownload:     appSettings.autoDownloadUpdates,
+    checkIntervalMin: appSettings.updateCheckIntervalMin,
+    onDownloaded: (info) => {
+      buildTrayMenu(info.version);
+      try {
+        new Notification({
+          title: 'Tiksu Bot Manager — Päivitys valmis',
+          body: `Versio ${info.version} on ladattu. Asennetaan automaattisesti kun suljet sovelluksen.`,
+        }).show();
+      } catch (_) {}
+    },
+  });
 });
 
 app.on('window-all-closed', () => {
@@ -749,9 +812,9 @@ app.on('activate', () => {
 app.on('before-quit', () => {
   for (const [, info] of botProcesses) {
     try { info.process.kill('SIGTERM'); } catch (_) {}
+    killTree(info.process);  // don't orphan the bot's own children
   }
-  // If update downloaded, install silently on quit — no installer UI, app restarts automatically
-  if (updateReady) {
-    try { autoUpdater.quitAndInstall(true, true); } catch (_) {}
-  }
+  // A downloaded update installs itself on quit — electron-updater handles it
+  // via autoInstallOnAppQuit. Calling quitAndInstall() here would re-enter this
+  // handler, so don't.
 });

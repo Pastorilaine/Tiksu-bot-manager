@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Pinnat, tummasta vaaleaan */
+  --c-bg: 13 15 18;          /* sovelluksen tausta */
+  --c-surface: 20 23 28;     /* paneeli, kortti, sivupalkki */
+  --c-surface-2: 26 30 36;   /* kentät, hover, korotettu pinta */
+  --c-line: 36 41 47;        /* reuna */
+  --c-line-strong: 51 58 67; /* reuna hoverissa, vierityspalkki */
+
+  /* Teksti, kolme tasoa */
+  --c-text: 230 232 235;     /* leipäteksti ja otsikot */
+  --c-muted: 154 163 173;    /* toissijainen */
+  --c-subtle: 107 116 126;   /* metatieto, placeholder */
+
+  /* Aksentti ja tilat */
+  --c-accent: 59 130 246;
+  --c-accent-fg: 255 255 255;
+  --c-success: 34 197 94;
+  --c-warn: 245 158 11;
+  --c-danger: 239 68 68;
+
+  /* Mitat */
+  --titlebar-height: 40px;
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 56px;
+  --page-gutter: 24px;
+
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --c-bg: 246 247 249;
+  --c-surface: 255 255 255;
+  --c-surface-2: 241 243 245;
+  --c-line: 227 230 234;
+  --c-line-strong: 205 211 218;
+  --c-text: 20 23 26;
+  --c-muted: 92 101 111;
+  --c-subtle: 133 142 152;
+  --c-accent: 37 99 235;
+  --c-accent-fg: 255 255 255;
+  --c-success: 22 163 74;
+  --c-warn: 217 119 6;
+  --c-danger: 220 38 38;
+
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
   user-select: none;
@@ -10,17 +57,23 @@
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', Inter, -apple-system, sans-serif;
   overflow: hidden;
-  background: #0b0b14;
-  color: #e3e5e8;
+  background-color: rgb(var(--c-bg));
+  color: rgb(var(--c-text));
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--c-accent));
+  outline-offset: 1px;
+  border-radius: 4px;
 }
 
 /* Thin scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e1e35; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #2a2a4a; }
+::-webkit-scrollbar-thumb { background: rgb(var(--c-line-strong)); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--c-subtle)); }
 
 /* Allow text selection in log output */
 .selectable { user-select: text; }
@@ -49,13 +102,55 @@ body {
   50%       { opacity: 0.5; }
 }
 
-/* Input focus glow */
-input:focus, textarea:focus {
-  outline: none;
-  border-color: #5865F2 !important;
-  box-shadow: 0 0 0 3px rgba(88,101,242,0.15);
-}
-
 /* Copy icon reveal on log row hover */
 .copy-icon { opacity: 0; transition: opacity 0.1s; }
 .log-row:hover .copy-icon { opacity: 0.35; }
+
+@layer components {
+  /* Pinnat */
+  .panel { @apply bg-surface border border-line rounded-lg; }
+  .card  { @apply bg-surface border border-line rounded-md; }
+  .card-interactive { @apply card transition-colors hover:border-line-strong hover:bg-surface-2; }
+
+  /* Napit — .btn on pohja, muut modifioivat sitä */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 h-8 px-3 rounded-md text-ui font-medium
+           border border-line bg-surface-2 text-text transition-colors
+           hover:border-line-strong hover:bg-line
+           disabled:opacity-40 disabled:pointer-events-none cursor-pointer;
+  }
+  .btn-primary { @apply bg-accent text-accent-fg border-transparent hover:brightness-110; }
+  .btn-ghost   { @apply bg-transparent border-transparent text-muted hover:text-text hover:bg-surface-2 hover:border-line; }
+  .btn-danger  { @apply text-danger border-danger/30 bg-danger/10 hover:bg-danger/20; }
+  .btn-icon    { @apply w-8 p-0 flex-shrink-0; }
+  .btn-sm      { @apply h-7 px-2 text-label; }
+
+  /* Kentät */
+  .field {
+    @apply w-full h-8 px-2.5 rounded-md text-ui bg-surface-2 border border-line text-text
+           placeholder:text-subtle transition-colors
+           hover:border-line-strong focus:border-accent focus:outline-none disabled:opacity-40;
+  }
+  textarea.field { @apply h-auto py-2 leading-relaxed resize-y; }
+  .field-label   { @apply block text-label font-medium text-muted mb-1.5; }
+
+  /* Chipit */
+  .chip { @apply inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-label font-medium
+                 border border-line bg-surface-2 text-muted transition-colors
+                 hover:text-text hover:border-line-strong cursor-pointer; }
+  .chip-active { @apply bg-accent/10 border-accent/40 text-accent; }
+
+  /* Kelluvat */
+  .menu { @apply bg-surface border border-line-strong rounded-lg shadow-float py-1; }
+  .menu-item { @apply flex w-full items-center gap-2.5 px-3 h-8 text-ui text-muted text-left
+                      hover:bg-surface-2 hover:text-text cursor-pointer border-none bg-transparent; }
+
+  /* Sivurunko */
+  .page { @apply flex flex-col h-full min-w-0 bg-bg text-text; }
+  .page-head { @apply flex-shrink-0 flex items-start justify-between gap-4 border-b border-line bg-surface;
+               padding: 16px var(--page-gutter); }
+  .page-body { @apply flex-1 overflow-y-auto; }
+  .page-body-inner { padding: var(--page-gutter); padding-bottom: 40px; }
+  .section-label { @apply text-label font-semibold text-subtle; }
+}
+

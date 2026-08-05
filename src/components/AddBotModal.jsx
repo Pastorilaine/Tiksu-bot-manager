@@ -1,5 +1,5 @@
-﻿import { useState } from "react";
-import { Plus, X, FolderOpen, FileCode2, Code2, Pencil } from "lucide-react";
+import { useState } from "react";
+import { Plus, X, FolderOpen, FileCode2, Code2, Pencil, AlertCircle } from "lucide-react";
 
 export default function AddBotModal({ initialBot, onAdd, onEdit, onClose }) {
   const isEditMode = !!initialBot;
@@ -9,6 +9,7 @@ export default function AddBotModal({ initialBot, onAdd, onEdit, onClose }) {
   const [autoRestart, setAutoRestart] = useState(initialBot?.autoRestart ?? true);
   const [autoStart,   setAutoStart]   = useState(initialBot?.autoStart   ?? false);
   const [loading, setLoading]     = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [envVars, setEnvVars]     = useState(initialBot?.envVars ?? {});
   const [envFile, setEnvFile]     = useState(
     initialBot && Object.keys(initialBot.envVars ?? {}).length > 0 ? '(tallennettu)' : ''
@@ -22,13 +23,12 @@ export default function AddBotModal({ initialBot, onAdd, onEdit, onClose }) {
     const ext = p.split(".").pop().toLowerCase();
     if (ext === "py") setType("python");
     else if (["js","mjs","cjs"].includes(ext)) setType("js");
-    // Auto-detect .env in same directory
-    const lastSlash = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
-    const envPath = p.slice(0, lastSlash + 1) + '.env';
-    const content = await window.api.readFile?.(envPath);
+
+    const content = await window.api.readBotEnv?.(p);
     if (content) {
       const parsed = parseEnvContent(content);
-      if (Object.keys(parsed).length > 0) { setEnvVars(parsed); setEnvFile(envPath); }
+      const lastSlash = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+      if (Object.keys(parsed).length > 0) { setEnvVars(parsed); setEnvFile(p.slice(0, lastSlash + 1) + '.env'); }
     }
   };
 
@@ -42,135 +42,123 @@ export default function AddBotModal({ initialBot, onAdd, onEdit, onClose }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
     if (!name.trim() || !filePath.trim()) return;
     setLoading(true);
+    let res;
     if (isEditMode) {
-      await onEdit({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, autoStart, envVars });
+      res = await onEdit({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, autoStart, envVars });
     } else {
-      await onAdd({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, autoStart, envVars });
+      res = await onAdd({ name: name.trim(), type, filePath: filePath.trim(), autoRestart, autoStart, envVars });
     }
     setLoading(false);
+    if (res?.error) {
+      setErrorMessage(res.error);
+    }
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-      <div style={{ background: "#0f0f1c", border: "1px solid #1e1e35", borderRadius: 14, width: 420, boxShadow: "0 24px 64px rgba(0,0,0,0.7)" }}>
+    <div className="fixed inset-0 bg-black/65 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="panel w-[440px] shadow-float bg-surface border border-line rounded-lg overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 22px", borderBottom: "1px solid #17172a" }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: isEditMode ? "rgba(88,101,242,0.15)" : "rgba(88,101,242,0.15)", border: "1px solid rgba(88,101,242,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {isEditMode ? <Pencil size={16} color="#5865F2" /> : <Plus size={16} color="#5865F2" />}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
+          <div className="w-8 h-8 rounded-md bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0">
+            {isEditMode ? <Pencil className="w-4 h-4 text-accent" /> : <Plus className="w-4 h-4 text-accent" />}
           </div>
-          <h2 style={{ flex: 1, margin: 0, fontSize: 16, fontWeight: 700, color: "#f2f3f5" }}>{isEditMode ? "Muokkaa bottia" : "Lisää uusi botti"}</h2>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid #1e1e2a", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#4e5058" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a3a"}
-            onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e2a"}
-          >
-            <X size={14} />
+          <h2 className="flex-1 text-title font-semibold text-text">{isEditMode ? "Muokkaa bottia" : "Lisää uusi botti"}</h2>
+          <button onClick={onClose} className="btn btn-ghost btn-icon">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={submit} style={{ padding: "22px 22px 18px" }}>
+        <form onSubmit={submit} className="p-5 flex flex-col gap-4">
+
+          {errorMessage && (
+            <div className="flex items-center gap-2 p-2.5 rounded-md bg-danger/10 border border-danger/30 text-danger text-label">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
           {/* Name */}
-          <label style={{ display: "block", marginBottom: 16 }}>
-            <span style={labelStyle}>Botin nimi</span>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Esim. Moderaattori" required
-              style={inputStyle} onFocus={e => e.target.style.borderColor = "#5865F2"} onBlur={e => e.target.style.borderColor = "#1e1e35"} />
-          </label>
+          <div>
+            <label className="field-label">Botin nimi</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Esim. Moderaattori" required className="field" />
+          </div>
 
           {/* Type */}
-          <div style={{ marginBottom: 16 }}>
-            <span style={labelStyle}>Tyyppi</span>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 6 }}>
-              {[["python","Python","#5b8dd9"], ["js","JavaScript","#c8a800"]].map(([val, lbl, color]) => (
-                <button type="button" key={val} onClick={() => setType(val)}
-                  style={{ padding: "11px", borderRadius: 9, border: `1px solid ${type === val ? color + "55" : "#1e1e35"}`, background: type === val ? color + "15" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "all 0.1s" }}>
-                  {val === "python" ? <FileCode2 size={15} color={color} /> : <Code2 size={15} color={color} />}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: type === val ? color : "#4e5058" }}>{lbl}</span>
+          <div>
+            <label className="field-label">Tyyppi</label>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {[["python","Python"], ["js","JavaScript"]].map(([val, lbl]) => (
+                <button
+                  type="button"
+                  key={val}
+                  onClick={() => setType(val)}
+                  className={`btn ${type === val ? "btn-primary" : "btn-ghost border-line"}`}
+                >
+                  {val === "python" ? <FileCode2 className="w-4 h-4" /> : <Code2 className="w-4 h-4" />}
+                  <span>{lbl}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* File picker */}
-          <div style={{ marginBottom: 16 }}>
-            <span style={labelStyle}>Tiedostopolku</span>
-            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-              <input value={filePath} onChange={e => setFilePath(e.target.value)} placeholder={type === "python" ? "bot.py" : "bot.js"} required
-                style={{ ...inputStyle, flex: 1 }}
-                onFocus={e => e.target.style.borderColor = "#5865F2"} onBlur={e => e.target.style.borderColor = "#1e1e35"} />
-              <button type="button" onClick={pickFile}
-                style={{ padding: "0 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "transparent", color: "#949cf7", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, whiteSpace: "nowrap" }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a4a"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e35"}
-              >
-                <FolderOpen size={14} /> Selaa
+          <div>
+            <label className="field-label">Tiedostopolku</label>
+            <div className="flex gap-2 mt-1">
+              <input value={filePath} onChange={e => setFilePath(e.target.value)} placeholder={type === "python" ? "bot.py" : "bot.js"} required className="field flex-1" />
+              <button type="button" onClick={pickFile} className="btn shrink-0">
+                <FolderOpen className="w-4 h-4" /> Selaa
               </button>
             </div>
           </div>
 
           {/* .env file */}
-          <div style={{ marginBottom: 16 }}>
-            <span style={labelStyle}>Ympäristömuuttujat <span style={{ fontWeight: 400, color: "#4e5058" }}>(valinnainen)</span></span>
+          <div>
+            <label className="field-label">Ympäristömuuttujat <span className="font-normal text-subtle">(valinnainen)</span></label>
             {envFile ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, padding: "10px 13px", borderRadius: 9, background: "rgba(59,165,93,0.06)", border: "1px solid rgba(59,165,93,0.2)" }}>
-                <FileCode2 size={13} color="#3ba55d" style={{ flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 12, color: "#3ba55d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div className="flex items-center gap-2 p-2.5 rounded-md bg-success/10 border border-success/30 text-success text-label mt-1">
+                <FileCode2 className="w-4 h-4 shrink-0" />
+                <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                   {Object.keys(envVars).length} muuttujaa tuotu · {envFile.split(/[\\/]/).pop()}
                 </span>
-                <button type="button" onClick={() => { setEnvVars({}); setEnvFile(''); }}
-                  style={{ padding: 2, background: "transparent", border: "none", cursor: "pointer", color: "#4e5058", display: "flex" }}>
-                  <X size={13} />
+                <button type="button" onClick={() => { setEnvVars({}); setEnvFile(''); }} className="btn btn-ghost btn-icon w-6 h-6">
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             ) : (
-              <button type="button" onClick={importEnv}
-                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 13px", borderRadius: 9, background: "transparent", border: "1px dashed #1e1e35", color: "#4e5058", fontSize: 13, cursor: "pointer", transition: "all 0.1s", marginTop: 6 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#5865F2"; e.currentTarget.style.color = "#949cf7"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e1e35"; e.currentTarget.style.color = "#4e5058"; }}>
-                <FolderOpen size={14} /> Tuo .env-tiedostosta
+              <button type="button" onClick={importEnv} className="btn btn-ghost w-full border border-dashed border-line text-muted hover:text-text mt-1">
+                <FolderOpen className="w-4 h-4" /> Tuo .env-tiedostosta
               </button>
             )}
           </div>
 
           {/* Auto-restart */}
-          <label style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "rgba(88,101,242,0.04)", cursor: "pointer", marginBottom: 10, userSelect: "none" }}>
-            <div onClick={() => setAutoRestart(!autoRestart)}
-              style={{ width: 36, height: 20, borderRadius: 10, background: autoRestart ? "#5865F2" : "#20202a", border: `1px solid ${autoRestart ? "#5865F2" : "#2a2a3a"}`, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 2, left: autoRestart ? 17 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
-            </div>
+          <label className="flex items-center gap-3 p-3 rounded-md border border-line bg-surface-2 cursor-pointer select-none">
+            <input type="checkbox" checked={autoRestart} onChange={e => setAutoRestart(e.target.checked)} className="accent-accent w-4 h-4" />
             <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#e3e5e8" }}>Automaattinen uudelleenkäynnistys</p>
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#4e5058" }}>Botti käynnistyy uudelleen kaatumisen jälkeen</p>
+              <p className="text-ui font-medium text-text">Automaattinen uudelleenkäynnistys</p>
+              <p className="text-label text-subtle">Botti käynnistyy uudelleen kaatumisen jälkeen</p>
             </div>
           </label>
 
           {/* Auto-start */}
-          <label style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 9, border: "1px solid #1e1e35", background: "rgba(59,165,93,0.03)", cursor: "pointer", marginBottom: 22, userSelect: "none" }}>
-            <div onClick={() => setAutoStart(!autoStart)}
-              style={{ width: 36, height: 20, borderRadius: 10, background: autoStart ? "#3ba55d" : "#20202a", border: `1px solid ${autoStart ? "#3ba55d" : "#2a2a3a"}`, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 2, left: autoStart ? 17 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
-            </div>
+          <label className="flex items-center gap-3 p-3 rounded-md border border-line bg-surface-2 cursor-pointer select-none">
+            <input type="checkbox" checked={autoStart} onChange={e => setAutoStart(e.target.checked)} className="accent-accent w-4 h-4" />
             <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#e3e5e8" }}>Käynnisty automaattisesti</p>
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#4e5058" }}>Botti käynnistyy kun sovellus avataan</p>
+              <p className="text-ui font-medium text-text">Käynnisty automaattisesti</p>
+              <p className="text-label text-subtle">Botti käynnistyy kun sovellus avataan</p>
             </div>
           </label>
 
           {/* Footer */}
-          <div style={{ display: "flex", gap: 10 }}>
-            <button type="button" onClick={onClose}
-              style={{ flex: 1, padding: "11px", borderRadius: 9, border: "1px solid #1e1e35", background: "transparent", color: "#b5bac1", fontSize: 14, cursor: "pointer", transition: "border-color 0.1s" }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = "#2a2a3a"}
-              onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e35"}
-            >Peruuta</button>
-            <button type="submit" disabled={loading}
-              style={{ flex: 2, padding: "11px", borderRadius: 9, border: "none", background: loading ? "#3a3a5a" : "#5865F2", color: "#fff", fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", transition: "background 0.1s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = "#4752C4"; }}
-              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = "#5865F2"; }}
-            >
-              {loading ? "Tallennetaan…" : isEditMode ? <><Pencil size={15} /> Tallenna muutokset</> : <><Plus size={15} /> Lisää botti</>}
+          <div className="flex gap-2 pt-2 border-t border-line">
+            <button type="button" onClick={onClose} className="btn btn-ghost flex-1">Peruuta</button>
+            <button type="submit" disabled={loading} className="btn btn-primary flex-2">
+              {loading ? "Tallennetaan…" : isEditMode ? <><Pencil className="w-4 h-4" /> Tallenna muutokset</> : <><Plus className="w-4 h-4" /> Lisää botti</>}
             </button>
           </div>
         </form>
@@ -178,13 +166,6 @@ export default function AddBotModal({ initialBot, onAdd, onEdit, onClose }) {
     </div>
   );
 }
-
-const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "#b5bac1", marginBottom: 6 };
-const inputStyle = {
-  display: "block", width: "100%", padding: "10px 13px", borderRadius: 9,
-  background: "#0b0b14", border: "1px solid #1e1e35", color: "#e3e5e8", fontSize: 13,
-  outline: "none", transition: "border-color 0.1s", boxSizing: "border-box",
-};
 
 function parseEnvContent(content) {
   const vars = {};
@@ -202,3 +183,4 @@ function parseEnvContent(content) {
   }
   return vars;
 }
+

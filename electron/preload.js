@@ -16,7 +16,8 @@ contextBridge.exposeInMainWorld('api', {
   // ── File dialog ───────────────────────────────────────────────────────────
   pickFile:     () => ipcRenderer.invoke('dialog:pick-file'),
   pickEnvFile:  () => ipcRenderer.invoke('dialog:pick-env'),
-  readFile:     (filePath) => ipcRenderer.invoke('file:read', filePath),
+  // Reads the .env next to a bot script — main derives the path, not the renderer
+  readBotEnv:   (botFilePath) => ipcRenderer.invoke('env:read-for-bot', botFilePath),
   exportLogs:   (opts) => ipcRenderer.invoke('logs:export', opts),
 
   // ── Events from main process ──────────────────────────────────────────────
@@ -37,11 +38,13 @@ contextBridge.exposeInMainWorld('api', {
   downloadUpdate:   ()   => ipcRenderer.invoke('update:download'),
   installUpdate:    ()   => ipcRenderer.invoke('update:install'),
 
-  onUpdateAvailable:    (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:available',     h); return () => ipcRenderer.removeListener('update:available',     h); },
-  onUpdateNotAvailable: (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:not-available', h); return () => ipcRenderer.removeListener('update:not-available', h); },
-  onUpdateProgress:     (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:progress',      h); return () => ipcRenderer.removeListener('update:progress',      h); },
-  onUpdateDownloaded:   (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:downloaded',    h); return () => ipcRenderer.removeListener('update:downloaded',    h); },
-  onUpdateError:        (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:error',         h); return () => ipcRenderer.removeListener('update:error',         h); },
+  onUpdateChecking:     (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:checking',     h); return () => ipcRenderer.removeListener('update:checking',     h); },
+  onUpdateAvailable:    (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:available',    h); return () => ipcRenderer.removeListener('update:available',    h); },
+  onUpdateNotAvailable: (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:notAvailable', h); return () => ipcRenderer.removeListener('update:notAvailable', h); },
+  onUpdateProgress:     (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:progress',     h); return () => ipcRenderer.removeListener('update:progress',     h); },
+  onUpdateDownloaded:   (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:downloaded',   h); return () => ipcRenderer.removeListener('update:downloaded',   h); },
+  onUpdateInstallError: (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:installError', h); return () => ipcRenderer.removeListener('update:installError', h); },
+  onUpdateError:        (cb) => { const h = (_, d) => cb(d); ipcRenderer.on('update:error',        h); return () => ipcRenderer.removeListener('update:error',        h); },
 
   // ── Window controls ───────────────────────────────────────────────────────
   minimizeWindow:   () => ipcRenderer.invoke('win:minimize'),
@@ -57,4 +60,7 @@ contextBridge.exposeInMainWorld('api', {
   // ── Settings ──────────────────────────────────────────────────────────────
   getSettings: ()              => ipcRenderer.invoke('settings:get'),
   setSetting:  (key, value)   => ipcRenderer.invoke('settings:set', { key, value }),
+
+  // ── External ──────────────────────────────────────────────────────────────
+  openExternal: (url)         => ipcRenderer.invoke('shell:open-external', url),
 });

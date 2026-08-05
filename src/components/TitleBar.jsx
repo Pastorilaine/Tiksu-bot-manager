@@ -2,21 +2,6 @@ import { useState, useEffect } from "react";
 import { Minus, X } from "lucide-react";
 import logo from "../assets/tiksu_bots_trans.png";
 
-const BTN_BASE = {
-  width: 46,
-  height: 34,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  border: "none",
-  background: "transparent",
-  cursor: "pointer",
-  color: "#4a4a5e",
-  flexShrink: 0,
-  transition: "background 0.1s, color 0.1s",
-};
-
-// Restore icon (two overlapping squares) — shown when window is maximized
 function RestoreIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -26,7 +11,6 @@ function RestoreIcon() {
   );
 }
 
-// Maximize icon (single square)
 function MaximizeIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -45,53 +29,37 @@ export default function TitleBar() {
   }, []);
 
   return (
-    <div style={{
-      height: 34,
-      background: "#0a0a12",
-      display: "flex",
-      alignItems: "center",
-      WebkitAppRegion: "drag",
-      flexShrink: 0,
-      userSelect: "none",
-      position: "relative",
-      borderBottom: "1px solid #13131f",
-    }}
+    <div
+      className="h-[var(--titlebar-height)] bg-surface border-b border-line flex items-center shrink-0 select-none relative"
+      style={{ WebkitAppRegion: "drag" }}
       onDoubleClick={() => window.api.maximizeWindow()}
     >
-      {/* Top gradient accent line */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: 2,
-        background: "linear-gradient(90deg, #3ba55d 0%, #5865F2 55%, #7289da 100%)",
-      }} />
+      {/* Top accent border line */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-accent" />
 
       {/* Logo + title */}
-      <div style={{ display: "flex", alignItems: "center", gap: 9, paddingLeft: 14, flex: 1 }}>
-        <img src={logo} alt="Tiksu Bots" style={{ height: 18, objectFit: "contain", opacity: 0.85 }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#40405a", letterSpacing: "0.01em" }}>
+      <div className="flex items-center gap-2.5 px-3.5 flex-1">
+        <img src={logo} alt="Tiksu Bots" className="h-4 object-contain opacity-90" />
+        <span className="text-ui font-medium text-muted tracking-tight">
           Tiksu Bot Manager
         </span>
       </div>
 
-      {/* Window controls — no-drag so clicks work */}
-      <div style={{ display: "flex", WebkitAppRegion: "no-drag" }}>
-
+      {/* Window controls */}
+      <div className="flex h-full" style={{ WebkitAppRegion: "no-drag" }}>
         {/* Minimize */}
         <button
-          style={BTN_BASE}
+          className="w-11 h-full flex items-center justify-center border-none bg-transparent text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
           onClick={() => window.api.minimizeWindow()}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "#9a9ab0"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#4a4a5e"; }}
           title="Pienennä"
         >
-          <Minus size={12} />
+          <Minus className="w-3.5 h-3.5" />
         </button>
 
         {/* Maximize / Restore */}
         <button
-          style={BTN_BASE}
+          className="w-11 h-full flex items-center justify-center border-none bg-transparent text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
           onClick={() => window.api.maximizeWindow()}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.07)"; e.currentTarget.style.color = "#9a9ab0"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#4a4a5e"; }}
           title={maximized ? "Palauta" : "Suurenna"}
         >
           {maximized ? <RestoreIcon /> : <MaximizeIcon />}
@@ -99,15 +67,14 @@ export default function TitleBar() {
 
         {/* Close */}
         <button
-          style={BTN_BASE}
+          className="w-11 h-full flex items-center justify-center border-none bg-transparent text-muted hover:text-accent-fg hover:bg-danger transition-colors cursor-pointer"
           onClick={() => window.api.closeWindow()}
-          onMouseEnter={e => { e.currentTarget.style.background = "#c42b1c"; e.currentTarget.style.color = "#fff"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#4a4a5e"; }}
           title="Sulje"
         >
-          <X size={12} />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     </div>
   );
 }
+
